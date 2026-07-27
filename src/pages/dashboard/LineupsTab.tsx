@@ -29,6 +29,9 @@ import type { SlateGame } from '@/data/slate'
 import { MLB_SLATE } from '@/data/slate'
 import { deltaPct, deltaTextClass, formatDelta, heatCell } from '@/lib/heat'
 import { fmtRate, fmtSvPct, hasSavant } from '@/lib/savant'
+import RuleBuilder from '@/components/RuleBuilder'
+import { applyRules, describeRule } from '@/lib/filterRules'
+import type { FilterRule, RegisterRules } from '@/lib/filterRules'
 import type { FilterValues } from '@/components/FilterBar'
 import { windowSubset } from './utils'
 import { AnglePopover, Toast } from './angles'
@@ -248,9 +251,16 @@ export interface LineupsTabProps {
   values: FilterValues
   query: string
   onResetFilters: () => void
+  registerRules?: RegisterRules
 }
 
-export default function LineupsTab({ loading, values, query, onResetFilters }: LineupsTabProps) {
+export default function LineupsTab({
+  loading,
+  values,
+  query,
+  onResetFilters,
+  registerRules,
+}: LineupsTabProps) {
   const [gameFilter, setGameFilter] = useState<string | undefined>(undefined)
   const [selected, setSelected] = useState<LineupRow | null>(null)
   const [angleFor, setAngleFor] = useState<string | null>(null)
@@ -272,6 +282,15 @@ export default function LineupsTab({ loading, values, query, onResetFilters }: L
   useEffect(() => {
     setPresetChip(undefined)
   }, [market])
+
+  // Step 4 — numeric/text rules over the rendered ColumnDef list. State stays
+  // tab-local (rules are column-scoped); the dashboard saves/restores them
+  // through this registration for saved views.
+  const [rules, setRules] = useState<FilterRule[]>([])
+  useEffect(() => {
+    registerRules?.({ rules, apply: setRules })
+    return () => registerRules?.(null)
+  }, [rules, registerRules])
 
   // 2.1b — one flat row list: every batter on both teams of every game.
   // oppHand is the OPPOSING probable starter's throws; null when the slate
@@ -415,6 +434,14 @@ export default function LineupsTab({ loading, values, query, onResetFilters }: L
     [values, query, gameFilter],
   )
 
+  // Rules resolve through ColumnDef.value(row) against the rendered columns.
+  const visible = useMemo(() => applyRules(rules, columns, rows), [rules, columns, rows])
+
+  const handleReset = () => {
+    setRules([])
+    onResetFilters()
+  }
+
   return (
     <div className="space-y-3">
       <div className="prizm-card px-5 py-3">
@@ -424,6 +451,11 @@ export default function LineupsTab({ loading, values, query, onResetFilters }: L
       {/* Views chip row — narrows columns to a market preset, click again to clear */}
       <div className="prizm-card px-5 py-3">
         <PresetChips presets={BATTER_PRESETS} preset={activePresetKey} onChange={setPresetChip} />
+      </div>
+
+      {/* Rule builder — arbitrary predicates over the rendered columns */}
+      <div className="prizm-card px-5 py-3">
+        <RuleBuilder columns={columns} rules={rules} onChange={setRules} sampleRows={rows} />
       </div>
 
       {/* Filter by game — narrows rows; probable chips preserved in options */}
@@ -454,15 +486,23 @@ export default function LineupsTab({ loading, values, query, onResetFilters }: L
 
       <DataTable<LineupRow>
         columns={columns}
-        rows={rows}
+        rows={visible}
         rowKey={(r) => r.batter.id}
         loading={loading}
-        filterSig={filterSig}
+        filterSig={`${filterSig}:${JSON.stringify(rules)}`}
         onRowClick={(r) => setSelected(r)}
-        onResetFilters={onResetFilters}
-        emptyLabel="No players match these filters"
+        onResetFilters={handleReset}
+        emptyLabel={
+          rules.length > 0
+            ? `No players match these filters and ${rules.length} rule${rules.length === 1 ? '' : 's'}`
+            : 'No players match these filters'
+        }
         defaultSortKey="team"
         defaultSortDir={1}
+        exportName="prizm-batters"
+        exportFilters={
+          rules.length > 0 ? rules.map((r) => describeRule(r, columns)).join(', ') : undefined
+        }
         mobileTitle={(r) => r.batter.name}
         mobileSummary={(r) =>
           `${r.batter.team} · ${r.batter.pos} · ${r.batter.bats} · ${r.game.away} @ ${r.game.home} · AVG ${fmt.rate(

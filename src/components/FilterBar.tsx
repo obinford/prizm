@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Bookmark, Check, ChevronDown, Pin, X } from 'lucide-react'
+import type { FilterRule } from '@/lib/filterRules'
 
 /**
  * Filters & Saved Views (design.md §7.8).
@@ -25,6 +26,8 @@ export interface SavedView {
   name: string
   scope: string
   values: FilterValues
+  /** Numeric predicates. Optional so views saved before Step 4 still load. */
+  rules?: FilterRule[]
   isDefault?: boolean
   createdAt: number
 }
@@ -88,9 +91,13 @@ export interface FilterBarProps {
   filters: FilterDef[]
   values: FilterValues
   onChange: (values: FilterValues) => void
-  /** namespace for saved views + pinned filters, e.g. 'dashboard-mlb' */
+  /** namespace for saved views + pinned filters, e.g. 'dashboard-mlb:starters' */
   scope: string
   showSaveView?: boolean
+  /** Current tab's rules, read at save time. Optional — Gamecenter has none. */
+  getRules?: () => FilterRule[]
+  /** Restore a saved view's rules into the active tab. Missing rules mean []. */
+  applyRules?: (rules: FilterRule[]) => void
 }
 
 function Chip({
@@ -206,15 +213,26 @@ function Chip({
   )
 }
 
-export default function FilterBar({ filters, values, onChange, scope, showSaveView = true }: FilterBarProps) {
+export default function FilterBar({ filters, values, onChange, scope, showSaveView = true, getRules, applyRules }: FilterBarProps) {
   const [views, setViews] = useState<SavedView[]>(() => getSavedViews(scope))
   const [pinned, setPinnedState] = useState<string[]>(() => getPinned(scope))
+  // Legacy views saved under the bare 'dashboard-mlb' scope before per-tab
+  // scopes existed. They deliberately stop appearing (rule 6), so surface
+  // them and offer to re-scope to the current tab.
+  const [legacy, setLegacy] = useState<SavedView[]>(() => getSavedViews('dashboard-mlb'))
   const [viewsOpen, setViewsOpen] = useState(false)
   const [saveOpen, setSaveOpen] = useState(false)
   const [viewName, setViewName] = useState('')
   const [makeDefault, setMakeDefault] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
   const viewsRef = useRef<HTMLDivElement>(null)
+
+  // The scope is per-tab, so tab switches must reload views and pins.
+  useEffect(() => {
+    setViews(getSavedViews(scope))
+    setPinnedState(getPinned(scope))
+    setLegacy(getSavedViews('dashboard-mlb'))
+  }, [scope])
 
   useEffect(() => {
     if (!viewsOpen) return
@@ -245,7 +263,7 @@ export default function FilterBar({ filters, values, onChange, scope, showSaveVi
 
   const handleSave = () => {
     if (!viewName.trim()) return
-    saveView({ name: viewName.trim(), scope, values, isDefault: makeDefault })
+    saveView({ name: viewName.trim(), scope, values, rules: getRules?.() ?? [], isDefault: makeDefault })
     setViews(getSavedViews(scope))
     setSaveOpen(false)
     setViewName('')
@@ -255,7 +273,20 @@ export default function FilterBar({ filters, values, onChange, scope, showSaveVi
 
   const applyView = (view: SavedView) => {
     onChange({ ...view.values })
+    // Guard the read: pre-Step-4 JSON has no rules field.
+    applyRules?.(view.rules ?? [])
     setViewsOpen(false)
+  }
+
+  /** Re-scope a legacy dashboard-mlb view to the current tab, then drop the old row. */
+  const migrateLegacy = () => {
+    for (const v of legacy) {
+      saveView({ name: v.name, scope, values: v.values, rules: v.rules ?? [], isDefault: v.isDefault })
+      deleteView(v.id)
+    }
+    setViews(getSavedViews(scope))
+    setLegacy(getSavedViews('dashboard-mlb'))
+    setToast(`${legacy.length} view${legacy.length === 1 ? '' : 's'} moved to this tab`)
   }
 
   return (
@@ -277,6 +308,23 @@ export default function FilterBar({ filters, values, onChange, scope, showSaveVi
               staggerIndex={i}
             />
           ))}
+        </div>
+      )}
+
+      {/* Legacy-scope notice — pre-per-tab saved views, with a re-scope offer */}
+      {legacy.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 rounded-sm border border-dashed border-line bg-bg-2/50 px-3 py-2">
+          <p className="text-[11px] text-text-3">
+            {legacy.length} saved view{legacy.length === 1 ? '' : 's'} from before per-tab scopes
+            {legacy.length === 1 ? ' is' : ' are'} not shown here.
+          </p>
+          <button
+            type="button"
+            onClick={migrateLegacy}
+            className="data-mono rounded-sm border border-line bg-bg-2 px-2 py-0.5 text-[11px] font-medium text-text-2 transition-colors hover:bg-bg-3 hover:text-text-1"
+          >
+            Move to this tab
+          </button>
         </div>
       )}
 

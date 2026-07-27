@@ -3,7 +3,7 @@
 // split table · S7 batting lineups · S8 bullpen · S9 mobile card/sheet UX.
 // App shell, topbar, auth gate and theme toggle live in the shared AppShell.
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { ListFilter, RotateCcw, Search, X } from 'lucide-react'
 import FilterBar, { getSavedViews } from '@/components/FilterBar'
@@ -22,6 +22,7 @@ import EdgeCenter from '@/pages/EdgeCenter'
 import HitRates from '@/pages/HitRates'
 import type { SplitKey } from './utils'
 import { getStarters, windowSubset } from './utils'
+import type { FilterRule } from '@/lib/filterRules'
 
 // Seven MLB tabs in one dashboard. Gamecenter, Edgecenter and Hit Rates used to
 // be separate sidebar routes; they are tabs now so the whole MLB workflow shares
@@ -116,7 +117,11 @@ const FILTERS: FilterDef[] = [
   },
 ]
 
-const SCOPE = 'dashboard-mlb'
+// Saved views and pins are scoped per tab ('dashboard-mlb:starters', …), not
+// per dashboard — a Starters view offering itself on Team Stats would carry
+// half-dormant rules. Views saved under the bare 'dashboard-mlb' scope before
+// this change stop appearing; FilterBar surfaces them with a re-scope offer.
+const scopeFor = (tab: TabKey) => `dashboard-mlb:${tab}`
 
 const TAB_HEADER: Record<TabKey, { title: string; search: string }> = {
   gamecenter: { title: "Tonight's matchups", search: '' },
@@ -154,14 +159,30 @@ export default function Dashboard() {
     paramView === 'hitrates' ? 'hitrates' : 'table',
   )
   const day = useSlateDay()
-  // Default view (saved with "make default") applies on first load (§7.8)
+  const scope = scopeFor(tab)
+  // Default view (saved with "make default") applies on first load (§7.8).
+  // Its rules restore when the view is applied from the Views menu — the
+  // tab-local rule state does not exist yet at this initializer.
   const [values, setValues] = useState<FilterValues>(
-    () => getSavedViews(SCOPE).find((v) => v.isDefault)?.values ?? {},
+    () => getSavedViews(scopeFor(tab)).find((v) => v.isDefault)?.values ?? {},
   )
   const [query, setQuery] = useState('')
   const [loading, setLoading] = useState(true)
   const [sheetOpen, setSheetOpen] = useState(false)
   const isMobile = useIsMobile()
+
+  // Rules live in the active tab (they are column-scoped and must not
+  // hoist). This ref is the bridge FilterBar uses to save/restore them:
+  // the tab registers { rules, apply } while mounted, null when not.
+  const rulesApiRef = useRef<{ rules: FilterRule[]; apply: (r: FilterRule[]) => void } | null>(
+    null,
+  )
+  const registerRules = useCallback(
+    (api: { rules: FilterRule[]; apply: (r: FilterRule[]) => void } | null) => {
+      rulesApiRef.current = api
+    },
+    [],
+  )
 
   // Skeleton shimmer 500ms on route/tab enter, then rows stagger in (§S5).
   // Reset during render when the tab changes (React-sanctioned pattern),
@@ -323,7 +344,14 @@ export default function Dashboard() {
           <div className="prizm-card space-y-3 p-4">
             {searchInput}
             {filters.length > 0 && (
-              <FilterBar filters={filters} values={values} onChange={setValues} scope={SCOPE} />
+              <FilterBar
+                filters={filters}
+                values={values}
+                onChange={setValues}
+                scope={scope}
+                getRules={() => rulesApiRef.current?.rules ?? []}
+                applyRules={(r) => rulesApiRef.current?.apply(r)}
+              />
             )}
           </div>
         )}
@@ -354,6 +382,7 @@ export default function Dashboard() {
                 split={split}
                 filterSig={filterSig}
                 onResetFilters={reset}
+                registerRules={registerRules}
               />
             ))}
 
@@ -361,15 +390,15 @@ export default function Dashboard() {
             (viewMode === 'hitrates' ? (
               <HitRates />
             ) : (
-              <LineupsTab loading={loading} values={values} query={query} onResetFilters={reset} />
+              <LineupsTab loading={loading} values={values} query={query} onResetFilters={reset} registerRules={registerRules} />
             ))}
 
           {tab === 'bullpen' && (
-            <BullpenTab loading={loading} query={query} filterSig={filterSig} onResetFilters={reset} />
+            <BullpenTab loading={loading} query={query} filterSig={filterSig} onResetFilters={reset} registerRules={registerRules} />
           )}
 
           {tab === 'teams' && (
-            <TeamsTab loading={loading} query={query} filterSig={filterSig} onResetFilters={reset} />
+            <TeamsTab loading={loading} query={query} filterSig={filterSig} onResetFilters={reset} registerRules={registerRules} />
           )}
 
           {tab === 'weather' && (
@@ -424,7 +453,14 @@ export default function Dashboard() {
               <div className="space-y-3 pb-2">
                 {searchInput}
                 {filters.length > 0 && (
-                  <FilterBar filters={filters} values={values} onChange={setValues} scope={SCOPE} />
+                  <FilterBar
+                    filters={filters}
+                    values={values}
+                    onChange={setValues}
+                    scope={scope}
+                    getRules={() => rulesApiRef.current?.rules ?? []}
+                    applyRules={(r) => rulesApiRef.current?.apply(r)}
+                  />
                 )}
                 <button
                   type="button"

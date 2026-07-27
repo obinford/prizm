@@ -11,7 +11,7 @@
 // date-bucketed team rollup exists. Game windows are not offered rather than
 // faked. Heat is against the 30-team mean, not a team's own history.
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import DataTable from '@/components/DataTable'
 import type { MlbTeamStats } from '@contracts/types'
 import { trpc } from '@/providers/trpc'
@@ -19,6 +19,9 @@ import { MLB_TEAMS } from '@/data/mlbTeams'
 import { fmt } from '@/lib/columns'
 import type { TeamRow } from '@/lib/columns/mlbTeams'
 import { HEATED_KEYS, teamColumns } from '@/lib/columns/mlbTeams'
+import RuleBuilder from '@/components/RuleBuilder'
+import { applyRules, describeRule } from '@/lib/filterRules'
+import type { FilterRule, RegisterRules } from '@/lib/filterRules'
 import { toMlbamAbbr } from './utils'
 import LegendStrip from './Legend'
 
@@ -46,11 +49,26 @@ export interface TeamsTabProps {
   query: string
   filterSig: string
   onResetFilters: () => void
+  registerRules?: RegisterRules
 }
 
-export default function TeamsTab({ loading, query, filterSig, onResetFilters }: TeamsTabProps) {
+export default function TeamsTab({
+  loading,
+  query,
+  filterSig,
+  onResetFilters,
+  registerRules,
+}: TeamsTabProps) {
   const [split, setSplit] = useState<TeamSplit>('season')
   const statsQuery = trpc.teams.stats.useQuery({ split }, QUERY_OPTS)
+
+  // Step 4 — rules over the split-aware team columns; tab-local state,
+  // dashboard bridges it into saved views through this registration.
+  const [rules, setRules] = useState<FilterRule[]>([])
+  useEffect(() => {
+    registerRules?.({ rules, apply: setRules })
+    return () => registerRules?.(null)
+  }, [rules, registerRules])
 
   const response = statsQuery.data
 
@@ -102,6 +120,14 @@ export default function TeamsTab({ loading, query, filterSig, onResetFilters }: 
 
   const columns = useMemo(() => teamColumns(leagueMeans), [leagueMeans])
 
+  // Rules resolve through ColumnDef.value(row) against the rendered columns.
+  const visible = useMemo(() => applyRules(rules, columns, rows), [rules, columns, rows])
+
+  const handleReset = () => {
+    setRules([])
+    onResetFilters()
+  }
+
   const provenance = response
     ? `Baseball Savant → sv_stat_cache · ${league.length}/30 teams${
         rows.length !== league.length ? ` · ${rows.length} shown` : ''
@@ -143,17 +169,30 @@ export default function TeamsTab({ loading, query, filterSig, onResetFilters }: 
         </p>
       </div>
 
+      {/* Rule builder — arbitrary predicates over the rendered columns */}
+      <div className="prizm-card px-5 py-3">
+        <RuleBuilder columns={columns} rules={rules} onChange={setRules} sampleRows={rows} />
+      </div>
+
       <DataTable<TeamRow>
         columns={columns}
-        rows={rows}
+        rows={visible}
         rowKey={(r) => r.team.abbr}
         loading={loading || statsQuery.isPending}
-        filterSig={`${filterSig}:${split}`}
-        onResetFilters={onResetFilters}
-        emptyLabel="No teams match these filters"
+        filterSig={`${filterSig}:${split}:${JSON.stringify(rules)}`}
+        onResetFilters={handleReset}
+        emptyLabel={
+          rules.length > 0
+            ? `No teams match these filters and ${rules.length} rule${rules.length === 1 ? '' : 's'}`
+            : 'No teams match these filters'
+        }
         provenance={provenance}
         defaultSortKey="woba"
         defaultSortDir={-1}
+        exportName="prizm-team-stats"
+        exportFilters={
+          rules.length > 0 ? rules.map((r) => describeRule(r, columns)).join(', ') : undefined
+        }
         mobileTitle={(r) => `${r.team.city} ${r.team.name}`}
         mobileSummary={(r) =>
           `wOBA ${r.stats.woba != null ? fmt.rate(r.stats.woba) : '—'} · K ${

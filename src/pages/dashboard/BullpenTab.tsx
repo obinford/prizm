@@ -13,13 +13,16 @@
 // src/lib/columns/mlbBullpen.ts and sorting/nulls-last/em-dash behaviour is
 // DataTable's. The drawer stays local — it is bullpen-specific.
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { X } from 'lucide-react'
 import DataTable from '@/components/DataTable'
 import { fmt } from '@/lib/columns'
 import type { BullpenRow } from '@/lib/columns/mlbBullpen'
 import { BULLPEN_COLUMNS } from '@/lib/columns/mlbBullpen'
+import RuleBuilder from '@/components/RuleBuilder'
+import { applyRules, describeRule } from '@/lib/filterRules'
+import type { FilterRule, RegisterRules } from '@/lib/filterRules'
 import { getBullpenRows } from './utils'
 import LegendStrip from './Legend'
 
@@ -28,10 +31,25 @@ export interface BullpenTabProps {
   query: string
   filterSig: string
   onResetFilters: () => void
+  registerRules?: RegisterRules
 }
 
-export default function BullpenTab({ loading, query, filterSig, onResetFilters }: BullpenTabProps) {
+export default function BullpenTab({
+  loading,
+  query,
+  filterSig,
+  onResetFilters,
+  registerRules,
+}: BullpenTabProps) {
   const [selected, setSelected] = useState<BullpenRow | null>(null)
+
+  // Step 4 — rules over BULLPEN_COLUMNS; tab-local state, dashboard bridges it
+  // into saved views through this registration.
+  const [rules, setRules] = useState<FilterRule[]>([])
+  useEffect(() => {
+    registerRules?.({ rules, apply: setRules })
+    return () => registerRules?.(null)
+  }, [rules, registerRules])
 
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -45,6 +63,14 @@ export default function BullpenTab({ loading, query, filterSig, onResetFilters }
     )
   }, [query])
 
+  // Rules resolve through ColumnDef.value(row) against the rendered columns.
+  const visible = useMemo(() => applyRules(rules, BULLPEN_COLUMNS, rows), [rules, rows])
+
+  const handleReset = () => {
+    setRules([])
+    onResetFilters()
+  }
+
   const covered = rows.filter((r) => r.era != null).length
 
   const provenance = `Team reliever aggregates from MLB Stats API game logs · ${covered}/${rows.length} teams covered${
@@ -57,18 +83,38 @@ export default function BullpenTab({ loading, query, filterSig, onResetFilters }
         <LegendStrip />
       </div>
 
+      {/* Rule builder — arbitrary predicates over the rendered columns */}
+      <div className="prizm-card px-5 py-3">
+        <RuleBuilder
+          columns={BULLPEN_COLUMNS}
+          rules={rules}
+          onChange={setRules}
+          sampleRows={rows}
+        />
+      </div>
+
       <DataTable<BullpenRow>
         columns={BULLPEN_COLUMNS}
-        rows={rows}
+        rows={visible}
         rowKey={(r) => r.team.abbr}
         loading={loading}
-        filterSig={filterSig}
+        filterSig={`${filterSig}:${JSON.stringify(rules)}`}
         onRowClick={(r) => setSelected(r)}
-        onResetFilters={onResetFilters}
-        emptyLabel="No teams match these filters"
+        onResetFilters={handleReset}
+        emptyLabel={
+          rules.length > 0
+            ? `No teams match these filters and ${rules.length} rule${rules.length === 1 ? '' : 's'}`
+            : 'No teams match these filters'
+        }
         provenance={provenance}
         defaultSortKey="era"
         defaultSortDir={1}
+        exportName="prizm-bullpen"
+        exportFilters={
+          rules.length > 0
+            ? rules.map((r) => describeRule(r, BULLPEN_COLUMNS)).join(', ')
+            : undefined
+        }
         mobileTitle={(r) => `${r.team.city} ${r.team.name}`}
         mobileSummary={(r) =>
           `ERA ${r.era != null ? fmt.era(r.era) : '—'} · WHIP ${

@@ -10,10 +10,12 @@
 
 import { useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
-import { ArrowDown, Gem } from 'lucide-react'
+import { ArrowDown, Download, Gem } from 'lucide-react'
 import type { ColumnDef } from '@/lib/columns'
 import { groupSpans } from '@/lib/columns'
 import { deltaPct, deltaTextClass, formatDelta, heatCell } from '@/lib/heat'
+import { csvProvenanceLine, downloadCsv, toCsv } from '@/lib/exportCsv'
+import { slateDate } from '@/lib/slateDay'
 
 const DASH = '—'
 
@@ -36,6 +38,10 @@ export interface DataTableProps<Row> {
   /** Compact one-line summary for the mobile card. */
   mobileSummary?: (row: Row) => string
   mobileTitle?: (row: Row) => string
+  /** Enables the Export CSV button. Filename gets the slate date appended. */
+  exportName?: string
+  /** Active-rule summary appended to the CSV provenance comment line. */
+  exportFilters?: string
 }
 
 interface SortState {
@@ -61,6 +67,8 @@ export default function DataTable<Row>({
   defaultSortDir = -1,
   mobileSummary,
   mobileTitle,
+  exportName,
+  exportFilters,
 }: DataTableProps<Row>) {
   const [sort, setSort] = useState<SortState>({
     key: defaultSortKey ?? null,
@@ -106,6 +114,22 @@ export default function DataTable<Row>({
     })
   }
 
+  // Export the exact array being rendered — sorted, ruled and searched.
+  // Exporting the unsorted source is the bug this exists to avoid.
+  const onExport = () => {
+    if (!exportName) return
+    const d = slateDate()
+    const ymd = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(
+      d.getDate(),
+    ).padStart(2, '0')}`
+    const head = csvProvenanceLine([
+      `Prizm export · ${exportName} · ${ymd}`,
+      provenance,
+      exportFilters ? `filters: ${exportFilters}` : undefined,
+    ])
+    downloadCsv(`${exportName}-${ymd}.csv`, `${head}\n${toCsv(columns, sorted)}`)
+  }
+
   const headerTitle = (col: ColumnDef<Row>) =>
     [col.definition, col.markets?.length ? `Markets: ${col.markets.join(', ')}` : '', `Source: ${col.source}`]
       .filter(Boolean)
@@ -143,8 +167,23 @@ export default function DataTable<Row>({
 
   return (
     <div className="prizm-card overflow-hidden">
-      {provenance && (
-        <p className="data-mono border-b border-line px-5 py-2 text-[11px] text-text-3">{provenance}</p>
+      {(provenance || exportName) && (
+        <div className="flex items-center justify-between gap-3 border-b border-line px-5 py-2">
+          {provenance ? (
+            <p className="data-mono text-[11px] text-text-3">{provenance}</p>
+          ) : (
+            <span />
+          )}
+          {exportName && (
+            <button
+              type="button"
+              onClick={onExport}
+              className="data-mono flex shrink-0 items-center gap-1.5 rounded-sm border border-line bg-bg-2 px-2 py-1 text-[11px] font-medium text-text-2 transition-colors hover:bg-bg-3 hover:text-text-1"
+            >
+              <Download size={12} /> Export CSV
+            </button>
+          )}
+        </div>
       )}
 
       {/* Desktop / tablet */}

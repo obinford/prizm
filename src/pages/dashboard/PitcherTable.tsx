@@ -14,7 +14,10 @@ import { BookmarkPlus, Flame } from 'lucide-react'
 import type { MlbWindowKey } from '@/data/mlbPlayers'
 import { MLB_WINDOW_LABELS } from '@/data/mlbPlayers'
 import DataTable from '@/components/DataTable'
+import RuleBuilder from '@/components/RuleBuilder'
 import type { ColumnDef } from '@/lib/columns'
+import type { FilterRule, RegisterRules } from '@/lib/filterRules'
+import { applyRules, describeRule } from '@/lib/filterRules'
 import type { PitcherRow } from '@/lib/columns/mlbPitchers'
 import { PITCHER_COLUMNS, PITCHER_PRESETS, pitcherWindowColumns } from '@/lib/columns/mlbPitchers'
 import type { SplitKey, StarterEntry } from './utils'
@@ -55,6 +58,8 @@ export interface PitcherTableProps {
   /** bump on any filter change to replay the re-tint sweep + row restagger */
   filterSig: string
   onResetFilters: () => void
+  /** Registers this tab's rule state with the dashboard for saved views. */
+  registerRules?: RegisterRules
 }
 
 export default function PitcherTable({
@@ -65,6 +70,7 @@ export default function PitcherTable({
   split,
   filterSig,
   onResetFilters,
+  registerRules,
 }: PitcherTableProps) {
   const [selected, setSelected] = useState<StarterEntry | null>(null)
   const [angleFor, setAngleFor] = useState<string | null>(null)
@@ -83,6 +89,15 @@ export default function PitcherTable({
   useEffect(() => {
     setPresetChip(undefined)
   }, [market])
+
+  // Step 4 — numeric/text rules over the rendered ColumnDef list. State stays
+  // tab-local (rules are column-scoped); the dashboard saves/restores them
+  // through this registration for saved views.
+  const [rules, setRules] = useState<FilterRule[]>([])
+  useEffect(() => {
+    registerRules?.({ rules, apply: setRules })
+    return () => registerRules?.(null)
+  }, [rules, registerRules])
 
   const saveAngle = (entry: StarterEntry) => (angleId: string | null, newName?: string) => {
     addToAngle(angleId, newName, {
@@ -201,6 +216,14 @@ export default function PitcherTable({
     ? 'Split view · real Statcast splits only. ERA and WHIP have no split source and show —, as do rolling windows (sv splits are season-level).'
     : undefined
 
+  // Rules resolve through ColumnDef.value(row) against the rendered columns.
+  const visible = useMemo(() => applyRules(rules, columns, entries), [rules, columns, entries])
+
+  const handleReset = () => {
+    setRules([])
+    onResetFilters()
+  }
+
   return (
     <div className="space-y-3">
       <div className="prizm-card px-5 py-3">
@@ -212,18 +235,31 @@ export default function PitcherTable({
         <PresetChips presets={PITCHER_PRESETS} preset={activePresetKey} onChange={setPresetChip} />
       </div>
 
+      {/* Rule builder — arbitrary predicates over the rendered columns */}
+      <div className="prizm-card px-5 py-3">
+        <RuleBuilder columns={columns} rules={rules} onChange={setRules} sampleRows={entries} />
+      </div>
+
       <DataTable<PitcherRow>
         columns={columns}
-        rows={entries}
+        rows={visible}
         rowKey={(r) => r.pitcher.id}
         loading={loading}
-        filterSig={filterSig}
+        filterSig={`${filterSig}:${JSON.stringify(rules)}`}
         onRowClick={(r) => setSelected(r)}
-        onResetFilters={onResetFilters}
-        emptyLabel="No starters match these filters"
+        onResetFilters={handleReset}
+        emptyLabel={
+          rules.length > 0
+            ? `No starters match these filters and ${rules.length} rule${rules.length === 1 ? '' : 's'}`
+            : 'No starters match these filters'
+        }
         provenance={provenance}
         defaultSortKey="edge"
         defaultSortDir={-1}
+        exportName="prizm-starters"
+        exportFilters={
+          rules.length > 0 ? rules.map((r) => describeRule(r, columns)).join(', ') : undefined
+        }
         mobileTitle={(r) => r.pitcher.name}
         mobileSummary={(r) =>
           `${r.pitcher.team} · ${r.pitcher.throws}HP vs ${r.opp} · Edge ${edgeScore(r.pitcher)}`

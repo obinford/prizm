@@ -26,6 +26,15 @@ export const NUMERIC_OPS: RuleOperator[] = ['gt', 'gte', 'lt', 'lte', 'eq', 'neq
 export const NULL_OPS: RuleOperator[] = ['isNull', 'notNull']
 export const TEXT_OPS: RuleOperator[] = ['contains', 'eq', 'neq']
 
+/**
+ * The bridge a tab uses to register its rule state with the dashboard, so
+ * FilterBar can save/restore rules without the state being hoisted.
+ * The tab registers while mounted, null when it unmounts.
+ */
+export type RegisterRules = (
+  api: { rules: FilterRule[]; apply: (r: FilterRule[]) => void } | null,
+) => void
+
 export const OP_LABELS: Record<RuleOperator, string> = {
   gt: '>', gte: '≥', lt: '<', lte: '≤', eq: '=', neq: '≠',
   between: 'between', isNull: 'is missing', notNull: 'has a value',
