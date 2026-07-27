@@ -23,6 +23,7 @@ import { AnglePopover, Toast } from './angles'
 import { addToAngle, useToast } from './angleStore'
 import PitcherDrawer from './PitcherDrawer'
 import LegendStrip from './Legend'
+import PresetChips from './PresetChips'
 
 export type StatKey = 'era' | 'whip' | 'kPct' | 'bbPct' | 'xwoba'
 
@@ -68,6 +69,10 @@ export default function PitcherTable({
   const [selected, setSelected] = useState<StarterEntry | null>(null)
   const [angleFor, setAngleFor] = useState<string | null>(null)
   const [toast, showToast] = useToast()
+  // Views chip row (Step 2.3). A chip overrides the Market filter's preset
+  // mapping; clearing the chip falls back to Market, then to all columns.
+  const [presetChip, setPresetChip] = useState<string | undefined>(undefined)
+  const activePresetKey = presetChip ?? (market ? MARKET_TO_PRESET[market] : undefined)
 
   const saveAngle = (entry: StarterEntry) => (angleId: string | null, newName?: string) => {
     addToAngle(angleId, newName, {
@@ -100,9 +105,10 @@ export default function PitcherTable({
       ),
     }
 
-    // 2. Season + Statcast columns, narrowed by the active market preset.
-    const presetKey = market ? MARKET_TO_PRESET[market] : undefined
-    const preset = presetKey ? PITCHER_PRESETS.find((p) => p.key === presetKey) : undefined
+    // 2. Season + Statcast columns, narrowed by the active preset (chip or market).
+    const preset = activePresetKey
+      ? PITCHER_PRESETS.find((p) => p.key === activePresetKey)
+      : undefined
     const wanted = preset ? new Set([...ALWAYS_SHOW, ...preset.columns]) : null
 
     const stats: ColumnDef<PitcherRow>[] = PITCHER_COLUMNS.filter(
@@ -179,7 +185,7 @@ export default function PitcherTable({
     return [identity, ...stats, ...windowCols, edge, actions]
     // saveAngle closes over stable setters; angleFor drives the popover only.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [market, windows, split, angleFor])
+  }, [activePresetKey, windows, split, angleFor])
 
   const provenance = split
     ? 'Split view · real Statcast splits only. ERA and WHIP have no split source and show —, as do rolling windows (sv splits are season-level).'
@@ -189,6 +195,11 @@ export default function PitcherTable({
     <div className="space-y-3">
       <div className="prizm-card px-5 py-3">
         <LegendStrip />
+      </div>
+
+      {/* Views chip row — narrows columns to a market preset, click again to clear */}
+      <div className="prizm-card px-5 py-3">
+        <PresetChips presets={PITCHER_PRESETS} preset={activePresetKey} onChange={setPresetChip} />
       </div>
 
       <DataTable<PitcherRow>

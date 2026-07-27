@@ -34,6 +34,7 @@ import { windowSubset } from './utils'
 import { AnglePopover, Toast } from './angles'
 import { addToAngle, useToast } from './angleStore'
 import LegendStrip from './Legend'
+import PresetChips from './PresetChips'
 
 /** Local row — the shared BatterRow plus the game it belongs to. */
 interface LineupRow extends BatterRow {
@@ -254,9 +255,13 @@ export default function LineupsTab({ loading, values, query, onResetFilters }: L
   const [selected, setSelected] = useState<LineupRow | null>(null)
   const [angleFor, setAngleFor] = useState<string | null>(null)
   const [toast, showToast] = useToast()
+  // Views chip row (Step 2.3). A chip overrides the Market filter's preset
+  // mapping; clearing the chip falls back to Market, then to all columns.
+  const [presetChip, setPresetChip] = useState<string | undefined>(undefined)
 
   const windows = windowSubset(values.window)
   const market = values.market
+  const activePresetKey = presetChip ?? (market ? MARKET_TO_PRESET[market] : undefined)
 
   // 2.1b — one flat row list: every batter on both teams of every game.
   // oppHand is the OPPOSING probable starter's throws; null when the slate
@@ -351,8 +356,9 @@ export default function LineupsTab({ loading, values, query, onResetFilters }: L
       sortable: true,
     }
 
-    const presetKey = market ? MARKET_TO_PRESET[market] : undefined
-    const preset = presetKey ? BATTER_PRESETS.find((p) => p.key === presetKey) : undefined
+    const preset = activePresetKey
+      ? BATTER_PRESETS.find((p) => p.key === activePresetKey)
+      : undefined
     const wanted = preset ? new Set([...ALWAYS_SHOW, ...preset.columns]) : null
 
     const stats = BATTER_COLUMNS.filter((c) => !wanted || wanted.has(c.key))
@@ -392,7 +398,7 @@ export default function LineupsTab({ loading, values, query, onResetFilters }: L
     return [identity, gameCol, ...stats, ...windowCols, actions]
     // saveAngleFor closes over stable setters; angleFor drives the popover only.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [market, windows, angleFor])
+  }, [activePresetKey, windows, angleFor])
 
   const filterSig = useMemo(
     () => JSON.stringify([values, query, gameFilter]),
@@ -403,6 +409,11 @@ export default function LineupsTab({ loading, values, query, onResetFilters }: L
     <div className="space-y-3">
       <div className="prizm-card px-5 py-3">
         <LegendStrip />
+      </div>
+
+      {/* Views chip row — narrows columns to a market preset, click again to clear */}
+      <div className="prizm-card px-5 py-3">
+        <PresetChips presets={BATTER_PRESETS} preset={activePresetKey} onChange={setPresetChip} />
       </div>
 
       {/* Filter by game — narrows rows; probable chips preserved in options */}
