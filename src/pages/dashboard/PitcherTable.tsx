@@ -1,20 +1,24 @@
-// Pitchers tab — the signature rolling split table (dashboard.md §S5).
-// Extends the shared SplitTable's visual contract (sticky player column,
-// indigo season group, heat cells + delta chips, hover tooltips, skeleton,
-// mobile cards) with the pitcher-specific Edge column, sortable headers and
-// per-row "+ Angle" action required by the design. Built page-locally because
-// the shared SplitTable component (which the Lineups tab uses) has a fixed
-// column model that cannot express these.
+// Pitchers tab — now rendered by the shared DataTable.
+//
+// This file used to be 569 lines of hand-rolled table: its own header markup,
+// sort state, heat cells, delta chips, null handling, tooltips, skeleton and
+// mobile cards — all duplicated from four other tables. It is now a column list
+// plus the pitcher-specific bits DataTable does not own (the Edge gauge, the
+// "+ Angle" row action, and the drawer).
+//
+// Adding a column is now an edit to src/lib/columns/mlbPitchers.ts. Adding a
+// sport is a new column list. Nothing here changes.
 
 import { useMemo, useState } from 'react'
-import { AnimatePresence, motion } from 'framer-motion'
-import { ArrowDown, BookmarkPlus, Flame, Gem } from 'lucide-react'
+import { BookmarkPlus, Flame } from 'lucide-react'
 import type { MlbWindowKey } from '@/data/mlbPlayers'
 import { MLB_WINDOW_LABELS } from '@/data/mlbPlayers'
-import { deltaPct, deltaTextClass, formatDelta, heatCell } from '@/lib/heat'
-import { fmtSvPct, hasSavant } from '@/lib/savant'
+import DataTable from '@/components/DataTable'
+import type { ColumnDef } from '@/lib/columns'
+import type { PitcherRow } from '@/lib/columns/mlbPitchers'
+import { PITCHER_COLUMNS, PITCHER_PRESETS, pitcherWindowColumns } from '@/lib/columns/mlbPitchers'
 import type { SplitKey, StarterEntry } from './utils'
-import { edgeScore, fmtEra, fmtPct, fmtWhip, fmtXwoba, splitStat, splitWindowStat } from './utils'
+import { edgeScore, splitStat } from './utils'
 import { AnglePopover, Toast } from './angles'
 import { addToAngle, useToast } from './angleStore'
 import PitcherDrawer from './PitcherDrawer'
@@ -22,47 +26,23 @@ import LegendStrip from './Legend'
 
 export type StatKey = 'era' | 'whip' | 'kPct' | 'bbPct' | 'xwoba'
 
-const STAT_META: Record<
-  StatKey,
-  { label: string; invert: boolean; fmt: (v: number) => string; deltaDec: number; toDisplay: (v: number) => number }
-> = {
-  era: { label: 'ERA', invert: true, fmt: fmtEra, deltaDec: 2, toDisplay: (v) => v },
-  whip: { label: 'WHIP', invert: true, fmt: fmtWhip, deltaDec: 2, toDisplay: (v) => v },
-  kPct: { label: 'K%', invert: false, fmt: fmtPct, deltaDec: 1, toDisplay: (v) => v * 100 },
-  bbPct: { label: 'BB%', invert: true, fmt: fmtPct, deltaDec: 1, toDisplay: (v) => v * 100 },
-  xwoba: { label: 'xwOBA', invert: true, fmt: fmtXwoba, deltaDec: 3, toDisplay: (v) => v },
-}
+/** Columns that always render, whatever preset is active. */
+const ALWAYS_SHOW = ['team', 'throws', 'opponent']
 
-const SEASON_STATS: StatKey[] = ['era', 'whip', 'kPct', 'bbPct', 'xwoba']
+/** Season stats that must respect the active split filter. */
+const SPLITTABLE: StatKey[] = ['era', 'whip', 'kPct', 'bbPct', 'xwoba']
 
-/** Market filter → stat focus for the window groups (default: K% + ERA). */
-function focusStats(market: string | undefined): StatKey[] {
-  switch (market) {
-    case 'ks':
-      return ['kPct']
-    case 'hits':
-      return ['whip']
-    case 'er':
-      return ['era']
-    case 'outs':
-      return ['xwoba']
-    default:
-      return ['kPct', 'era']
-  }
-}
-
-interface Row {
-  entry: StarterEntry
-  season: Record<StatKey, number | null>
-  windows: Record<MlbWindowKey, Record<StatKey, number | null> & { bf: number }>
-  edge: number
-}
-
-type SortKey = 'edge' | StatKey | `w:${MlbWindowKey}`
-
-interface SortState {
-  key: SortKey
-  dir: 1 | -1
+/**
+ * Market filter → column preset. The dashboard's `Market` chip maps onto the
+ * same market-keyed presets Handigraphs exposes as My Views chips.
+ */
+const MARKET_TO_PRESET: Record<string, string> = {
+  ks: 'k',
+  hits: 'h',
+  er: 'er',
+  outs: 'er',
+  hr: 'hr',
+  bb: 'bb',
 }
 
 export interface PitcherTableProps {
@@ -76,12 +56,6 @@ export interface PitcherTableProps {
   onResetFilters: () => void
 }
 
-interface HoverCell {
-  id: string
-  w: MlbWindowKey
-  stat: StatKey
-}
-
 export default function PitcherTable({
   entries,
   loading,
@@ -91,84 +65,9 @@ export default function PitcherTable({
   filterSig,
   onResetFilters,
 }: PitcherTableProps) {
-  const [hover, setHover] = useState<HoverCell | null>(null)
   const [selected, setSelected] = useState<StarterEntry | null>(null)
   const [angleFor, setAngleFor] = useState<string | null>(null)
-  const [sort, setSort] = useState<SortState>({ key: 'edge', dir: -1 })
   const [toast, showToast] = useToast()
-
-  const stats = focusStats(market)
-
-  // The STCAST badge asserts "real Statcast xwOBA". Only show it when at least
-  // one visible pitcher actually has sv coverage — otherwise the column is the
-  // OPS-derived estimate from api/ingest/mlb.ts:109 and the badge is a lie.
-  const hasRealXwoba = useMemo(
-    () => entries.some((e) => e.pitcher.xwobaReal != null),
-    [entries],
-  )
-
-  const rows = useMemo<Row[]>(() => {
-    return entries.map((entry) => {
-      const p = entry.pitcher
-      const season = {} as Record<StatKey, number | null>
-      for (const s of SEASON_STATS) season[s] = splitStat(p, split, s)
-      const wins = {} as Row['windows']
-      for (const w of windows) {
-        const src = p.windows[w]
-        const adj = { bf: src.bf } as Record<StatKey, number | null> & { bf: number }
-        for (const s of SEASON_STATS) adj[s] = splitWindowStat(p, w, split, s)
-        wins[w] = adj
-      }
-      return { entry, season, windows: wins, edge: edgeScore(p) }
-    })
-  }, [entries, windows, split])
-
-  const sorted = useMemo(() => {
-    const primary = stats[0]
-    const arr = [...rows]
-    // null = no real data for this cell; such rows always sort to the bottom
-    // regardless of direction, so an em-dash never outranks a real number.
-    const val = (r: Row): number | null => {
-      if (sort.key === 'edge') return r.edge
-      if (sort.key.startsWith('w:')) {
-        const w = sort.key.slice(2) as MlbWindowKey
-        const meta = STAT_META[primary]
-        const wv = r.windows[w][primary]
-        const sv = r.season[primary]
-        if (wv == null || sv == null) return null
-        let d = deltaPct(wv, sv)
-        if (meta.invert) d = -d
-        return d
-      }
-      return r.season[sort.key as StatKey]
-    }
-    arr.sort((a, b) => {
-      const av = val(a)
-      const bv = val(b)
-      if (av == null && bv == null) return 0
-      if (av == null) return 1
-      if (bv == null) return -1
-      return (av - bv) * (sort.dir === 1 ? 1 : -1)
-    })
-    return arr
-  }, [rows, sort, stats])
-
-  const clickSort = (key: SortKey) => {
-    setSort((prev) => {
-      if (prev.key === key) return { key, dir: prev.dir === 1 ? -1 : 1 }
-      const defaultDir: 1 | -1 =
-        key !== 'edge' && !key.startsWith('w:') && STAT_META[key as StatKey].invert ? 1 : -1
-      return { key, dir: defaultDir }
-    })
-  }
-
-  const sortArrow = (key: SortKey) =>
-    sort.key === key ? (
-      <ArrowDown
-        size={11}
-        className={`inline transition-transform duration-200 ${sort.dir === 1 ? 'rotate-180' : ''}`}
-      />
-    ) : null
 
   const saveAngle = (entry: StarterEntry) => (angleId: string | null, newName?: string) => {
     addToAngle(angleId, newName, {
@@ -181,388 +80,141 @@ export default function PitcherTable({
     showToast('Added to angle')
   }
 
-  const skeletonRows = useMemo(() => Array.from({ length: 6 }, (_, i) => i), [])
+  const columns = useMemo<ColumnDef<PitcherRow>[]>(() => {
+    // 1. Sticky identity cell — name over team / hand / opponent.
+    const identity: ColumnDef<PitcherRow> = {
+      key: 'player',
+      label: 'Player',
+      value: (r) => r.pitcher.name,
+      source: 'MLB Stats API → players',
+      definition: 'Tonight’s probable starter.',
+      sticky: true,
+      minWidth: 190,
+      render: (r) => (
+        <>
+          <span className="block text-sm font-semibold text-text-1">{r.pitcher.name}</span>
+          <span className="data-mono block text-[11px] text-text-3">
+            {r.pitcher.team} · {r.pitcher.throws}HP vs {r.opp}
+          </span>
+        </>
+      ),
+    }
+
+    // 2. Season + Statcast columns, narrowed by the active market preset.
+    const presetKey = market ? MARKET_TO_PRESET[market] : undefined
+    const preset = presetKey ? PITCHER_PRESETS.find((p) => p.key === presetKey) : undefined
+    const wanted = preset ? new Set([...ALWAYS_SHOW, ...preset.columns]) : null
+
+    const stats: ColumnDef<PitcherRow>[] = PITCHER_COLUMNS.filter(
+      (c) => !wanted || wanted.has(c.key),
+    ).map((c) => {
+      if (!SPLITTABLE.includes(c.key as StatKey)) return c
+      // Season values respect the active split. A split with no source dashes
+      // out rather than falling back to the unsplit season number — that
+      // fallback is what splitFactor() used to hide.
+      return {
+        ...c,
+        value: (r: PitcherRow) => splitStat(r.pitcher, split, c.key as StatKey),
+        missingHint: split
+          ? `No ${c.label} available for this split — sv_stat_cache split rows carry K%, BB% and Statcast rates only.`
+          : undefined,
+      }
+    })
+
+    // 3. Rolling-window heat columns, one group per active window.
+    const windowCols = windows.flatMap((w) =>
+      pitcherWindowColumns(w, MLB_WINDOW_LABELS[w], preset?.key === 'k' ? ['kPct'] : undefined),
+    )
+
+    // 4. Pitcher-specific: Edge gauge and the "+ Angle" row action.
+    const edge: ColumnDef<PitcherRow> = {
+      key: 'edge',
+      label: 'Edge',
+      value: (r) => edgeScore(r.pitcher),
+      source: 'Derived: mean(ΔK% − ΔERA) across rolling windows',
+      definition:
+        'A 0–100 composite of rolling-window form. Unvalidated and price-blind — it ranks form, it does not price a bet.',
+      sortable: true,
+      render: (r) => {
+        const e = edgeScore(r.pitcher)
+        return (
+          <span className="flex items-center justify-center gap-1.5">
+            <span className="data-mono text-[13px] font-bold text-text-1">{e}</span>
+            {e >= 75 && <Flame size={12} className="text-pos" />}
+          </span>
+        )
+      },
+    }
+
+    const actions: ColumnDef<PitcherRow> = {
+      key: 'actions',
+      label: '',
+      value: () => null,
+      source: '—',
+      definition: 'Save this pitcher to an angle.',
+      render: (r) => (
+        <span className="relative inline-flex">
+          <button
+            type="button"
+            aria-label={`Add ${r.pitcher.name} to an angle`}
+            onClick={(e) => {
+              e.stopPropagation()
+              setAngleFor(angleFor === r.pitcher.id ? null : r.pitcher.id)
+            }}
+            className={`rounded p-1 transition-opacity ${
+              angleFor === r.pitcher.id
+                ? 'text-sp-magenta opacity-100'
+                : 'opacity-60 hover:opacity-100'
+            }`}
+          >
+            <BookmarkPlus size={14} />
+          </button>
+          {angleFor === r.pitcher.id && (
+            <AnglePopover onPick={saveAngle(r)} onClose={() => setAngleFor(null)} />
+          )}
+        </span>
+      ),
+    }
+
+    return [identity, ...stats, ...windowCols, edge, actions]
+    // saveAngle closes over stable setters; angleFor drives the popover only.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [market, windows, split, angleFor])
+
+  const provenance = split
+    ? 'Split view · real Statcast splits only. ERA and WHIP have no split source and show —, as do rolling windows (sv splits are season-level).'
+    : undefined
 
   return (
-    <div className="prizm-card overflow-hidden">
-      {/* S4 legend */}
-      <div className="border-b border-line px-5 py-3">
+    <div className="space-y-3">
+      <div className="prizm-card px-5 py-3">
         <LegendStrip />
       </div>
 
-      {loading && (
-        <div className="p-5" aria-label="Loading">
-          {skeletonRows.map((i) => (
-            <div key={i} className="mb-3 h-12 animate-pulse rounded-md bg-bg-2" />
-          ))}
-        </div>
-      )}
+      <DataTable<PitcherRow>
+        columns={columns}
+        rows={entries}
+        rowKey={(r) => r.pitcher.id}
+        loading={loading}
+        filterSig={filterSig}
+        onRowClick={(r) => setSelected(r)}
+        onResetFilters={onResetFilters}
+        emptyLabel="No starters match these filters"
+        provenance={provenance}
+        defaultSortKey="edge"
+        defaultSortDir={-1}
+        mobileTitle={(r) => r.pitcher.name}
+        mobileSummary={(r) =>
+          `${r.pitcher.team} · ${r.pitcher.throws}HP vs ${r.opp} · Edge ${edgeScore(r.pitcher)}`
+        }
+      />
 
-      {!loading && sorted.length === 0 && (
-        <div className="flex flex-col items-center gap-4 px-6 py-16 text-center">
-          <Gem size={36} strokeWidth={1.5} className="text-text-3" />
-          <p className="text-sm text-text-2">No players match these filters</p>
-          <button
-            type="button"
-            onClick={onResetFilters}
-            className="rounded-md border border-line bg-bg-2 px-4 py-2.5 text-sm font-medium text-text-1 transition-colors hover:bg-bg-3"
-          >
-            Reset filters
-          </button>
-        </div>
-      )}
-
-      {!loading && sorted.length > 0 && (
-        <>
-          {/* Desktop / tablet table */}
-          <div className="hidden overflow-x-auto sm:block">
-            <table className="w-full border-collapse text-sm">
-              <thead>
-                <tr className="bg-bg-2">
-                  <th
-                    scope="col"
-                    rowSpan={2}
-                    className="sticky left-0 z-10 min-w-[220px] border-b border-line bg-bg-2 px-4 py-2 text-left overline-caption text-text-3"
-                  >
-                    Player
-                  </th>
-                  <th
-                    scope="colgroup"
-                    colSpan={SEASON_STATS.length}
-                    className="border-b border-l border-line px-2 py-2 text-center overline-caption text-sp-indigo"
-                    style={{ backgroundColor: 'rgba(99,102,241,0.08)' }}
-                  >
-                    Season
-                  </th>
-                  {windows.map((w) => (
-                    <th
-                      key={w}
-                      scope="colgroup"
-                      colSpan={stats.length}
-                      className="border-b border-l border-line px-2 py-2 text-center"
-                    >
-                      <button
-                        type="button"
-                        onClick={() => clickSort(`w:${w}`)}
-                        className="overline-caption text-text-2 transition-colors hover:text-text-1"
-                      >
-                        {MLB_WINDOW_LABELS[w]} {sortArrow(`w:${w}`)}
-                      </button>
-                    </th>
-                  ))}
-                  <th
-                    scope="col"
-                    rowSpan={2}
-                    className="border-b border-l border-line px-3 py-2 text-center"
-                  >
-                    <button
-                      type="button"
-                      onClick={() => clickSort('edge')}
-                      className="overline-caption text-text-2 transition-colors hover:text-text-1"
-                    >
-                      Edge {sortArrow('edge')}
-                    </button>
-                  </th>
-                  <th scope="col" rowSpan={2} className="w-12 border-b border-l border-line" aria-label="Actions" />
-                </tr>
-                <tr className="bg-bg-2">
-                  {SEASON_STATS.map((s) => (
-                    <th
-                      key={`season-${s}`}
-                      scope="col"
-                      className="border-b border-l border-line px-3 py-2 text-center"
-                      style={{ backgroundColor: 'rgba(99,102,241,0.05)' }}
-                    >
-                      <button
-                        type="button"
-                        onClick={() => clickSort(s)}
-                        className="data-mono text-[11px] font-medium uppercase tracking-wider text-text-3 transition-colors hover:text-text-1"
-                      >
-                        {STAT_META[s].label} {sortArrow(s)}
-                        {s === 'xwoba' && hasRealXwoba && (
-                          <span
-                            className="data-mono ml-1 rounded-sm border border-sp-cyan/40 bg-sp-cyan/10 px-1 py-px text-[8px] font-bold tracking-widest text-sp-cyan"
-                            title="Real Statcast xwOBA"
-                          >
-                            STCAST
-                          </span>
-                        )}
-                      </button>
-                    </th>
-                  ))}
-                  {windows.map((w) =>
-                    stats.map((s) => (
-                      <th
-                        key={`${w}-${s}`}
-                        scope="col"
-                        className="data-mono border-b border-l border-line px-3 py-2 text-center text-[11px] font-medium uppercase tracking-wider text-text-3"
-                      >
-                        {STAT_META[s].label}
-                      </th>
-                    )),
-                  )}
-                </tr>
-              </thead>
-              <tbody key={filterSig}>
-                {sorted.map((row, rowIdx) => {
-                  const p = row.entry.pitcher
-                  return (
-                    <motion.tr
-                      key={p.id}
-                      layout="position"
-                      initial={{ opacity: 0, y: 6 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.3, delay: rowIdx * 0.02 }}
-                      onClick={() => setSelected(row.entry)}
-                      className="group cursor-pointer transition-colors hover:bg-bg-3"
-                    >
-                      {/* Sticky player cell */}
-                      <th
-                        scope="row"
-                        className="sticky left-0 z-10 border-b border-line bg-bg-1 px-4 py-3 text-left font-normal group-hover:bg-bg-3"
-                      >
-                        <span className="block text-sm font-semibold text-text-1">{p.name}</span>
-                        <span className="data-mono block text-[11px] text-text-3">
-                          {p.team} · {p.throws}HP vs {row.entry.opp}
-                        </span>
-                      </th>
-
-                      {/* Season baseline cells */}
-                      {SEASON_STATS.map((s, i) => (
-                        <td
-                          key={`season-${s}`}
-                          className={`data-mono border-b border-l border-line px-3 py-3 text-center text-[13px] text-text-1 ${
-                            i % 2 === 0 ? 'bg-bg-1' : 'bg-bg-2/60'
-                          }`}
-                        >
-                          {row.season[s] == null ? (
-                            <span
-                              className="text-text-3"
-                              title={
-                                split
-                                  ? `No ${STAT_META[s].label} available for this split — sv_stat_cache split rows carry K%, BB% and Statcast rates only.`
-                                  : 'No data'
-                              }
-                            >
-                              —
-                            </span>
-                          ) : (
-                            STAT_META[s].fmt(row.season[s] as number)
-                          )}
-                        </td>
-                      ))}
-
-                      {/* Window heat cells */}
-                      {windows.map((w, wIdx) =>
-                        stats.map((s) => {
-                          const meta = STAT_META[s]
-                          const season = row.season[s]
-                          const value = row.windows[w][s]
-                          if (season == null || value == null) {
-                            return (
-                              <td
-                                key={`${w}-${s}`}
-                                className="data-mono border-b border-l border-line px-3 py-2 text-center text-[13px] text-text-3"
-                                title={
-                                  split
-                                    ? 'Rolling windows are unavailable while a split filter is active — Statcast splits are season-level only.'
-                                    : 'No data'
-                                }
-                              >
-                                —
-                              </td>
-                            )
-                          }
-                          let dPct = deltaPct(value, season)
-                          if (meta.invert) dPct = -dPct
-                          const { background, textClass } = heatCell(dPct)
-                          // chip sign matches color semantics: inverted stats (lower = better) flip sign
-                          const deltaDisplay = meta.invert
-                            ? meta.toDisplay(season) - meta.toDisplay(value)
-                            : meta.toDisplay(value) - meta.toDisplay(season)
-                          const isHover = hover?.id === p.id && hover.w === w && hover.stat === s
-                          const colIdx = wIdx * stats.length + stats.indexOf(s)
-                          return (
-                            <td
-                              key={`${w}-${s}`}
-                              className="relative border-b border-l border-line px-3 py-2 text-center"
-                              style={{ backgroundColor: background }}
-                              onMouseEnter={() => setHover({ id: p.id, w, stat: s })}
-                              onMouseLeave={() => setHover(null)}
-                            >
-                              {/* re-tint sweep veil */}
-                              <motion.span
-                                key={filterSig}
-                                initial={{ opacity: 0.55 }}
-                                animate={{ opacity: 0 }}
-                                transition={{ duration: 0.3, delay: colIdx * 0.05 }}
-                                className="pointer-events-none absolute inset-0 bg-bg-0"
-                              />
-                              <span className={`data-mono block text-[13px] font-bold ${textClass}`}>
-                                {meta.fmt(value)}
-                              </span>
-                              <span className={`data-mono block text-[10px] leading-tight ${deltaTextClass(dPct)}`}>
-                                {formatDelta(deltaDisplay, meta.deltaDec)}
-                              </span>
-                              <AnimatePresence>
-                                {isHover && (
-                                  <motion.div
-                                    initial={{ opacity: 0, y: 4 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    exit={{ opacity: 0 }}
-                                    transition={{ duration: 0.15 }}
-                                    className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-1 w-56 -translate-x-1/2 rounded-md border border-line bg-bg-2 p-3 text-left shadow-raised"
-                                  >
-                                    <p className="overline-caption mb-1.5 text-text-3">
-                                      {meta.label} · {MLB_WINDOW_LABELS[w]}
-                                    </p>
-                                    <p className="data-mono text-xs text-text-2">
-                                      {MLB_WINDOW_LABELS[w]} {meta.label}{' '}
-                                      <span className="text-text-1">{meta.fmt(value)}</span> vs season{' '}
-                                      <span className="text-text-1">{meta.fmt(season)}</span>
-                                    </p>
-                                    <p className={`data-mono mt-0.5 text-xs ${deltaTextClass(dPct)}`}>
-                                      Δ {formatDelta(dPct, 1)}% over {row.windows[w].bf} BF
-                                    </p>
-                                    {hasSavant(p) && (
-                                      <p className="data-mono mt-1 border-t border-line pt-1 text-[10px] text-text-3">
-                                        STCAST
-                                        {p.barrelPct != null && <> · Barrel {fmtSvPct(p.barrelPct)}</>}
-                                        {p.hardHitPct != null && <> · HH {fmtSvPct(p.hardHitPct)}</>}
-                                        {p.whiffPct != null && <> · Whiff {fmtSvPct(p.whiffPct)}</>}
-                                      </p>
-                                    )}
-                                  </motion.div>
-                                )}
-                              </AnimatePresence>
-                            </td>
-                          )
-                        }),
-                      )}
-
-                      {/* Edge column */}
-                      <td className="border-b border-l border-line px-3 py-2">
-                        <div className="flex items-center justify-center gap-2">
-                          <span
-                            className="h-7 w-[3px] rounded-full"
-                            style={{ background: 'var(--gradient-spectrum)' }}
-                          />
-                          <span className="data-mono text-[13px] font-bold text-text-1">{row.edge}</span>
-                          {row.edge >= 75 && <Flame size={14} className="text-pos" aria-label="Hot" />}
-                        </div>
-                      </td>
-
-                      {/* + Angle */}
-                      <td className="relative border-b border-l border-line px-2 py-2 text-center">
-                        <button
-                          type="button"
-                          aria-label={`Add ${p.name} to angle`}
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            setAngleFor(angleFor === p.id ? null : p.id)
-                          }}
-                          className={`rounded-sm p-1.5 text-text-3 transition-all hover:bg-bg-2 hover:text-sp-magenta ${
-                            angleFor === p.id ? 'opacity-100 text-sp-magenta' : 'opacity-0 group-hover:opacity-100 focus-visible:opacity-100'
-                          }`}
-                        >
-                          <BookmarkPlus size={15} />
-                        </button>
-                        <AnimatePresence>
-                          {angleFor === p.id && (
-                            <AnglePopover onPick={saveAngle(row.entry)} onClose={() => setAngleFor(null)} />
-                          )}
-                        </AnimatePresence>
-                      </td>
-                    </motion.tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Mobile card view (<640px) — dashboard.md §S9 */}
-          <div className="space-y-3 p-4 sm:hidden">
-            {sorted.map((row, i) => {
-              const p = row.entry.pitcher
-              const primary = stats[0]
-              const meta = STAT_META[primary]
-              return (
-                <motion.button
-                  key={p.id}
-                  type="button"
-                  initial={{ opacity: 0, y: 12 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.3, delay: i * 0.05 }}
-                  onClick={() => setSelected(row.entry)}
-                  className="w-full rounded-lg border border-line bg-bg-1 p-4 text-left"
-                >
-                  <div className="mb-1 flex items-baseline justify-between gap-2">
-                    <span className="text-sm font-semibold text-text-1">{p.name}</span>
-                    <span className="data-mono text-[11px] text-text-3">
-                      {p.team} · {p.throws}HP vs {row.entry.opp}
-                    </span>
-                  </div>
-                  {/* Edge bar */}
-                  <div className="mb-3 flex items-center gap-2">
-                    <div className="h-[3px] flex-1 overflow-hidden rounded-full bg-bg-3">
-                      <div
-                        className="h-full rounded-full"
-                        style={{ width: `${row.edge}%`, background: 'var(--gradient-spectrum)' }}
-                      />
-                    </div>
-                    <span className="data-mono text-[11px] font-bold text-text-1">{row.edge}</span>
-                    {row.edge >= 75 && <Flame size={12} className="text-pos" />}
-                  </div>
-                  <p className="data-mono mb-3 text-[11px] text-text-3">
-                    ERA {row.season.era == null ? '—' : fmtEra(row.season.era)} · WHIP{' '}
-                    {row.season.whip == null ? '—' : fmtWhip(row.season.whip)} · K{' '}
-                    {row.season.kPct == null ? '—' : fmtPct(row.season.kPct)} · BB{' '}
-                    {row.season.bbPct == null ? '—' : fmtPct(row.season.bbPct)} · xwOBA{' '}
-                    {row.season.xwoba == null ? '—' : fmtXwoba(row.season.xwoba)}
-                  </p>
-                  <div className="grid grid-cols-2 gap-2">
-                    {windows.map((w) => {
-                      const season = row.season[primary]
-                      const value = row.windows[w][primary]
-                      if (season == null || value == null) {
-                        return (
-                          <div
-                            key={w}
-                            className="data-mono rounded-sm border border-line px-2 py-1.5 text-[11px] text-text-3"
-                          >
-                            {MLB_WINDOW_LABELS[w].replace(' PA', '')} · —
-                          </div>
-                        )
-                      }
-                      let dPct = deltaPct(value, season)
-                      if (meta.invert) dPct = -dPct
-                      const { background, textClass } = heatCell(dPct)
-                      // chip sign matches color semantics: inverted stats (lower = better) flip sign
-                      const deltaDisplay = meta.invert
-                        ? meta.toDisplay(season) - meta.toDisplay(value)
-                        : meta.toDisplay(value) - meta.toDisplay(season)
-                      return (
-                        <div key={w} className="rounded-md px-2.5 py-2" style={{ backgroundColor: background }}>
-                          <span className="data-mono block text-[10px] uppercase tracking-wide text-text-3">
-                            {MLB_WINDOW_LABELS[w]} {meta.label}
-                          </span>
-                          <span className={`data-mono text-[13px] font-bold ${textClass}`}>{meta.fmt(value)}</span>
-                          <span className={`data-mono ml-1.5 text-[10px] ${deltaTextClass(dPct)}`}>
-                            {formatDelta(deltaDisplay, meta.deltaDec)}
-                          </span>
-                        </div>
-                      )
-                    })}
-                  </div>
-                </motion.button>
-              )
-            })}
-          </div>
-        </>
-      )}
-
-      {/* S6 pitcher detail drawer */}
-      <PitcherDrawer entry={selected} split={split} onClose={() => setSelected(null)} onToast={showToast} />
+      <PitcherDrawer
+        entry={selected}
+        split={split}
+        onClose={() => setSelected(null)}
+        onToast={showToast}
+      />
       <Toast message={toast} />
     </div>
   )
