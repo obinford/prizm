@@ -8,21 +8,51 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { ListFilter, RotateCcw, Search, X } from 'lucide-react'
 import FilterBar, { getSavedViews } from '@/components/FilterBar'
 import type { FilterDef, FilterValues } from '@/components/FilterBar'
+import { useSearchParams } from 'react-router'
+import { SLATE_DAY_LABEL, useSlateDay } from '@/lib/slateDay'
 import { MLB_SLATE } from '@/data/slate'
 import { MLB_TEAMS } from '@/data/mlbTeams'
 import PitcherTable from './PitcherTable'
 import LineupsTab from './LineupsTab'
 import BullpenTab from './BullpenTab'
+import TabPlaceholder from './TabPlaceholder'
+import GameCenter from '@/pages/GameCenter'
+import EdgeCenter from '@/pages/EdgeCenter'
+import HitRates from '@/pages/HitRates'
 import type { SplitKey } from './utils'
 import { getStarters, windowSubset } from './utils'
 
-type TabKey = 'pitchers' | 'lineups' | 'bullpen'
+// Seven MLB tabs in one dashboard. Gamecenter, Edgecenter and Hit Rates used to
+// be separate sidebar routes; they are tabs now so the whole MLB workflow shares
+// one control stack and one date context. DFS is deliberately out of scope.
+type TabKey =
+  | 'gamecenter'
+  | 'edgecenter'
+  | 'starters'
+  | 'teams'
+  | 'bullpen'
+  | 'batters'
+  | 'weather'
 
 const TABS: { key: TabKey; label: string }[] = [
-  { key: 'pitchers', label: 'Pitchers' },
-  { key: 'lineups', label: 'Batting Lineups' },
+  { key: 'gamecenter', label: 'Gamecenter' },
+  { key: 'edgecenter', label: 'Edgecenter' },
+  { key: 'starters', label: 'Starters' },
+  { key: 'teams', label: 'Team Stats' },
   { key: 'bullpen', label: 'Bullpen' },
+  { key: 'batters', label: 'Batters' },
+  { key: 'weather', label: 'Weather' },
 ]
+
+/** Tabs that use the shared filter bar + search. The rest are self-contained. */
+const FILTERED_TABS: TabKey[] = ['starters', 'bullpen', 'batters']
+
+/** Tabs offering the TABLE | HIT RATES view toggle. */
+const VIEW_MODE_TABS: TabKey[] = ['starters', 'batters']
+
+type ViewMode = 'table' | 'hitrates'
+
+
 
 const FILTERS: FilterDef[] = [
   {
@@ -74,9 +104,13 @@ const FILTERS: FilterDef[] = [
 const SCOPE = 'dashboard-mlb'
 
 const TAB_HEADER: Record<TabKey, { title: string; search: string }> = {
-  pitchers: { title: "Today's starting pitchers", search: 'Search pitcher…' },
-  lineups: { title: 'Projected batting lineups', search: 'Search batter…' },
+  gamecenter: { title: "Tonight's matchups", search: '' },
+  edgecenter: { title: 'The daily edge report', search: '' },
+  starters: { title: "Today's starting pitchers", search: 'Search pitcher…' },
+  teams: { title: 'Team offense', search: 'Search team…' },
   bullpen: { title: 'Bullpen dashboard', search: 'Search team…' },
+  batters: { title: 'Projected batting lineups', search: 'Search batter…' },
+  weather: { title: 'Weather & ballpark factors', search: '' },
 }
 
 const STARTERS = getStarters()
@@ -93,7 +127,18 @@ function useIsMobile(): boolean {
 }
 
 export default function Dashboard() {
-  const [tab, setTab] = useState<TabKey>('pitchers')
+  // ?tab= and ?view= let the old /gamecenter, /edgecenter and /hit-rates URLs
+  // redirect straight to the right tab instead of 404ing.
+  const [params] = useSearchParams()
+  const paramTab = params.get('tab') as TabKey | null
+  const paramView = params.get('view') as ViewMode | null
+  const [tab, setTab] = useState<TabKey>(
+    paramTab && TABS.some((t) => t.key === paramTab) ? paramTab : 'gamecenter',
+  )
+  const [viewMode, setViewMode] = useState<ViewMode>(
+    paramView === 'hitrates' ? 'hitrates' : 'table',
+  )
+  const day = useSlateDay()
   // Default view (saved with "make default") applies on first load (§7.8)
   const [values, setValues] = useState<FilterValues>(
     () => getSavedViews(SCOPE).find((v) => v.isDefault)?.values ?? {},
@@ -141,11 +186,14 @@ export default function Dashboard() {
     setQuery('')
   }
 
+  const dayLabel = SLATE_DAY_LABEL[day]
+
   const metaChip = useMemo(() => {
-    if (tab === 'pitchers') return `${MLB_SLATE.length} games · ${starters.length} starters`
-    if (tab === 'lineups') return `${MLB_SLATE.length} games · projected lineups`
-    return `${MLB_TEAMS.length} teams · L7/L14/L30 days`
-  }, [tab, starters.length])
+    if (tab === 'starters') return `${dayLabel} · ${MLB_SLATE.length} games · ${starters.length} starters`
+    if (tab === 'batters') return `${dayLabel} · ${MLB_SLATE.length} games · projected lineups`
+    if (tab === 'bullpen') return `${MLB_TEAMS.length} teams`
+    return dayLabel
+  }, [tab, starters.length, dayLabel])
 
   const searchInput = (
     <div className="relative">
@@ -212,7 +260,30 @@ export default function Dashboard() {
         ))}
       </motion.div>
 
+      {/* View-mode toggle — TABLE | HIT RATES, on Starters and Batters only */}
+      {VIEW_MODE_TABS.includes(tab) && (
+        <motion.div {...fadeRise(2)} className="flex items-center gap-2">
+          <span className="overline-caption text-text-3">View</span>
+          <div className="inline-flex rounded-md border border-line bg-bg-1 p-0.5" role="group" aria-label="View mode">
+            {(['table', 'hitrates'] as ViewMode[]).map((m) => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => setViewMode(m)}
+                aria-pressed={viewMode === m}
+                className={`rounded px-3 py-1.5 text-[12px] font-semibold uppercase tracking-wider transition-colors ${
+                  viewMode === m ? 'bg-bg-3 text-text-1' : 'text-text-3 hover:text-text-1'
+                }`}
+              >
+                {m === 'table' ? 'Table' : 'Hit Rates'}
+              </button>
+            ))}
+          </div>
+        </motion.div>
+      )}
+
       {/* S3 — filter bar + pinned row (desktop) / filter sheet button (mobile) */}
+      {FILTERED_TABS.includes(tab) && (
       <motion.div {...fadeRise(2)}>
         {isMobile ? (
           <button
@@ -230,8 +301,9 @@ export default function Dashboard() {
           </div>
         )}
       </motion.div>
+      )}
 
-      {/* S5 / S7 / S8 — tab content */}
+      {/* Tab content */}
       <AnimatePresence mode="wait">
         <motion.div
           key={tab}
@@ -240,22 +312,65 @@ export default function Dashboard() {
           exit={{ opacity: 0, y: -8 }}
           transition={{ duration: 0.15 }}
         >
-          {tab === 'pitchers' && (
-            <PitcherTable
-              entries={starters}
-              loading={loading}
-              market={values.market}
-              windows={windows}
-              split={split}
-              filterSig={filterSig}
-              onResetFilters={reset}
-            />
-          )}
-          {tab === 'lineups' && (
-            <LineupsTab loading={loading} values={values} query={query} onResetFilters={reset} />
-          )}
+          {tab === 'gamecenter' && <GameCenter />}
+          {tab === 'edgecenter' && <EdgeCenter />}
+
+          {tab === 'starters' &&
+            (viewMode === 'hitrates' ? (
+              <HitRates />
+            ) : (
+              <PitcherTable
+                entries={starters}
+                loading={loading}
+                market={values.market}
+                windows={windows}
+                split={split}
+                filterSig={filterSig}
+                onResetFilters={reset}
+              />
+            ))}
+
+          {tab === 'batters' &&
+            (viewMode === 'hitrates' ? (
+              <HitRates />
+            ) : (
+              <LineupsTab loading={loading} values={values} query={query} onResetFilters={reset} />
+            ))}
+
           {tab === 'bullpen' && (
             <BullpenTab loading={loading} query={query} filterSig={filterSig} onResetFilters={reset} />
+          )}
+
+          {tab === 'teams' && (
+            <TabPlaceholder
+              title="Team offense"
+              summary="One row per team with the offensive profile that drives every team- and game-level read: wRC+, wOBA, ISO, batted-ball mix, discipline and baserunning, across season and rolling windows."
+              blockers={[
+                'A team-level aggregation over sv_stat_cache — no such rollup exists yet',
+                'wRC+ and Contact% are not in sv_stat_cache and need a second source',
+                'Rolling team windows (L6 / L12 / L21 games) need date-bucketed aggregation',
+              ]}
+              available={[
+                'wOBA, BABIP, K%, BB%, HardHit%, Barrel% — already in sv_stat_cache',
+                'ISO, SLG, GB%, FB%, LD%, SwStr% — ingested and now mapped through api/loaders.ts',
+                'SB / SBA / SB% — available from the MLB Stats API ingest',
+              ]}
+            />
+          )}
+
+          {tab === 'weather' && (
+            <TabPlaceholder
+              title="Weather & ballpark factors"
+              summary="One card per game: park name and roof state, field dimensions, live conditions, and both a base park factor and a weather-adjusted one — so you can see how much of tonight's number is the park and how much is the air."
+              blockers={[
+                'slate_games.weatherJson exists in db/schema.ts and is never written or read',
+                'No weather provider is wired into the ingest',
+                'Roof state, field dimensions and wind direction have no source',
+              ]}
+              available={[
+                'parkFactor and ballpark are populated for all 30 teams in src/data/mlbTeams.ts and rendered nowhere',
+              ]}
+            />
           )}
         </motion.div>
       </AnimatePresence>

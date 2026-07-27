@@ -72,15 +72,79 @@ export function getStarters(): StarterEntry[] {
 }
 
 // ---------------------------------------------------------------------------
-// Split (platoon) adjustment — simulated vs LHB / vs RHB / Home / Away factors
+// Split (platoon) lookup — REAL Statcast splits only.
+//
+// Source: sv_stat_cache, attached to each pitcher as `p.splits` by
+// api/loaders.ts:74-93. Split rows carry k_pct / bb_pct (0-100 scale) plus the
+// Statcast rate stats. They do NOT carry ERA, WHIP, FIP or any counting stat —
+// see api/supabase/savant.ts:9-42. Those columns therefore have no split
+// source and must render as unavailable rather than being approximated.
+//
+// There is also no window x split cross-section (sv splits are season-level),
+// so rolling-window cells are unavailable while a split filter is active.
 // ---------------------------------------------------------------------------
 
 export type SplitKey = 'vs-lhb' | 'vs-rhb' | 'home' | 'away'
 
-export function splitFactor(seed: string, split: SplitKey | undefined, stat: string): number {
-  if (!split) return 1
-  const r = rand01(hashStr(`${seed}|${split}|${stat}`))
-  return 0.94 + r * 0.12 // 0.94 – 1.06
+/** UI split key -> sv_stat_cache split key. */
+const SV_SPLIT: Record<SplitKey, 'vsL' | 'vsR' | 'home' | 'away'> = {
+  'vs-lhb': 'vsL',
+  'vs-rhb': 'vsR',
+  home: 'home',
+  away: 'away',
+}
+
+/** Stats that exist in sv_stat_cache split rows. Everything else is unavailable. */
+export const SPLITTABLE_STATS = ['kPct', 'bbPct', 'xwoba'] as const
+export type SplittableStat = (typeof SPLITTABLE_STATS)[number]
+
+export function isSplittable(stat: string): stat is SplittableStat {
+  return (SPLITTABLE_STATS as readonly string[]).includes(stat)
+}
+
+/**
+ * Season-level value for a pitcher stat under an optional split.
+ *
+ * - no split active            -> the real season value
+ * - split active, stat sourced -> the real sv split value (scale-normalised)
+ * - split active, no source    -> null (caller renders an em-dash)
+ *
+ * Never approximates. Returns null rather than inventing a number.
+ */
+export function splitStat(
+  p: Pitcher,
+  split: SplitKey | undefined,
+  stat: 'era' | 'whip' | 'kPct' | 'bbPct' | 'xwoba',
+): number | null {
+  if (!split) return p[stat] ?? null
+  if (!isSplittable(stat)) return null // ERA / WHIP have no split source
+  const line = p.splits?.[SV_SPLIT[split]]
+  if (!line) return null // pitcher not covered by Statcast for this split
+  if (stat === 'xwoba') return line.xwobaReal ?? line.xwoba ?? null
+  // sv k_pct / bb_pct are 0-100; legacy season/window values are 0-1.
+  const raw = stat === 'kPct' ? line.kPct : line.bbPct
+  return raw == null ? null : raw / 100
+}
+
+/** Sample size (TBF) behind a split line, for the "over N BF" affordance. */
+export function splitSample(p: Pitcher, split: SplitKey | undefined): number | null {
+  if (!split) return null
+  return p.splits?.[SV_SPLIT[split]]?.pa ?? null
+}
+
+/**
+ * Rolling-window value under an optional split.
+ * sv has no window x split cross-section, so any active split makes every
+ * window cell unavailable.
+ */
+export function splitWindowStat(
+  p: Pitcher,
+  window: MlbWindowKey,
+  split: SplitKey | undefined,
+  stat: 'era' | 'whip' | 'kPct' | 'bbPct' | 'xwoba',
+): number | null {
+  if (split) return null
+  return p.windows[window][stat] ?? null
 }
 
 // ---------------------------------------------------------------------------
@@ -100,78 +164,54 @@ export function edgeScore(p: Pitcher): number {
 }
 
 // ---------------------------------------------------------------------------
-// Bullpen derivations (seed data only ships team.bullpenEra)
+// Bullpen — real team reliever aggregates only.
+//
+// Source: api/ingest/mlb.ts:251-260 writes a real per-team bullpen line
+// (era, whip, kPct, bbPct, relievers) aggregated from actual reliever game
+// logs, surfaced through slate.bullpens -> getLiveBullpen().
+//
+// Everything else this module used to return was invented:
+//   - WHIP fallback         `0.92 + era * 0.095`
+//   - K% fallback           `0.272 - (era-3.4)*0.024 + jitter`
+//   - LEV% (leverage)       `34 + rand01(seed+1) * 22`      — no source exists
+//   - fatigue pitch count   `72 + rand01(seed+2) * 74`      — no source exists
+//   - L7 / L14 / L30 ERA    `era * (1 + (rand01-0.5)*2*j)`  — no date buckets
+//   - named reliever slots  Closer/Setup/7th/Long, ERA + K% from one seed
+// All removed. Date-bucketed bullpen windows are buildable from game_logs and
+// are Phase 2 work; until then the columns are absent rather than guessed.
 // ---------------------------------------------------------------------------
 
-export type BullpenWindowKey = 'L7' | 'L14' | 'L30'
-export const BULLPEN_WINDOWS: { key: BullpenWindowKey; label: string }[] = [
-  { key: 'L7', label: 'L7 days' },
-  { key: 'L14', label: 'L14 days' },
-  { key: 'L30', label: 'L30 days' },
-]
+/**
+ * Seed abbreviations use the classic style (ARI); the warehouse and statsapi
+ * use MLBAM style (AZ). One team differs — without this alias the Diamondbacks
+ * would always miss their real bullpen row and silently show nothing.
+ */
+const BULLPEN_ABBR_ALIAS: Record<string, string> = { ARI: 'AZ' }
 
 export interface BullpenRow {
   team: MlbTeam
-  era: number
-  whip: number
-  kPct: number
-  leverage: number // high-leverage usage %
-  fatiguePitches: number // 3-day pitch count
-  fatigue: 'Fresh' | 'Normal' | 'Heavy'
-  windows: Record<BullpenWindowKey, { era: number; kPct: number }>
+  /** null => no ingested bullpen row for this team; render an em-dash. */
+  era: number | null
+  whip: number | null
+  kPct: number | null
+  bbPct: number | null
+  /** Distinct relievers behind the aggregate — the sample-size affordance. */
+  relievers: number | null
 }
 
 export function getBullpenRows(): BullpenRow[] {
   return MLB_TEAMS.map((team) => {
-    const seed = hashStr(`bp|${team.abbr}`)
-    // Prefer live bullpen stats (slate.bullpens → reliever game logs); fall
-    // back to the team table line for teams without an ingested row.
-    const live = getLiveBullpen(team.abbr)
-    const era = live?.era ?? team.bullpenEra
-    const whip = live?.whip ?? +(0.92 + era * 0.095).toFixed(2)
-    const kPct =
-      live?.kPct ??
-      +Math.min(
-        0.29,
-        Math.max(0.19, 0.272 - (era - 3.4) * 0.024 + (rand01(seed) - 0.5) * 0.02),
-      ).toFixed(3)
-    const leverage = Math.round(34 + rand01(seed + 1) * 22)
-    const fatiguePitches = Math.round(72 + rand01(seed + 2) * 74)
-    const fatigue: BullpenRow['fatigue'] =
-      fatiguePitches < 95 ? 'Fresh' : fatiguePitches < 118 ? 'Normal' : 'Heavy'
-    const windows = {} as BullpenRow['windows']
-    const jitter: Record<BullpenWindowKey, number> = { L7: 0.16, L14: 0.11, L30: 0.07 }
-    for (const key of ['L7', 'L14', 'L30'] as BullpenWindowKey[]) {
-      const r = rand01(seed + 10 + key.length * 7 + key.charCodeAt(1))
-      const skew = 1 + (r - 0.5) * 2 * jitter[key]
-      windows[key] = {
-        era: +Math.max(1.4, era * skew).toFixed(2),
-        kPct: +Math.min(0.32, Math.max(0.16, kPct * (1 + (skew - 1) * 0.7))).toFixed(3),
-      }
+    const live =
+      getLiveBullpen(team.abbr) ??
+      (BULLPEN_ABBR_ALIAS[team.abbr] ? getLiveBullpen(BULLPEN_ABBR_ALIAS[team.abbr]) : undefined)
+    return {
+      team,
+      era: live?.era ?? null,
+      whip: live?.whip ?? null,
+      kPct: live?.kPct ?? null,
+      bbPct: live?.bbPct ?? null,
+      relievers: live?.relievers ?? null,
     }
-    return { team, era, whip, kPct, leverage, fatiguePitches, fatigue, windows }
-  })
-}
-
-export interface RelieverSlot {
-  role: string
-  era: number
-  kPct: number
-}
-
-/** Top-4 bullpen arms by role slot, derived from the team's season line. */
-export function getRelievers(team: MlbTeam): RelieverSlot[] {
-  const seed = hashStr(`rp|${team.abbr}`)
-  const bullpenEra = getLiveBullpen(team.abbr)?.era ?? team.bullpenEra
-  const roles = ['Closer', 'Setup', '7th inning', 'Long relief']
-  return roles.map((role, i) => {
-    const r = rand01(seed + i * 13)
-    const era = +Math.max(1.2, bullpenEra - 0.55 + i * 0.34 + (r - 0.5) * 0.5).toFixed(2)
-    const kPct = +Math.min(
-      0.34,
-      Math.max(0.16, 0.285 - i * 0.024 - (bullpenEra - 3.6) * 0.02 + (r - 0.5) * 0.03),
-    ).toFixed(3)
-    return { role, era, kPct }
   })
 }
 

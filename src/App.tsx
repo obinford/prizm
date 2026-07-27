@@ -1,4 +1,4 @@
-import { Routes, Route, useLocation } from 'react-router'
+import { Navigate, Routes, Route, useLocation } from 'react-router'
 import Layout from '@/components/Layout'
 import AppShell from '@/components/AppShell'
 import Home from '@/pages/Home'
@@ -10,10 +10,7 @@ import Login from '@/pages/Login'
 import Register from '@/pages/Register'
 import Dashboard from '@/pages/dashboard/Dashboard'
 import HockeyDashboard from '@/pages/HockeyDashboard'
-import HitRates from '@/pages/HitRates'
 import Profiler from '@/pages/Profiler'
-import GameCenter from '@/pages/GameCenter'
-import EdgeCenter from '@/pages/EdgeCenter'
 import Ask from '@/pages/Ask'
 import Angles from '@/pages/Angles'
 
@@ -55,10 +52,13 @@ export default function App() {
       <Route element={<AppShell />}>
         <Route path="dashboard" element={<Dashboard />} />
         <Route path="dashboard/hockey" element={<HockeyDashboard />} />
-        <Route path="hit-rates" element={<HitRates />} />
+        {/* Gamecenter, Edgecenter and Hit Rates are dashboard tabs now, not
+            pages. These redirects keep every existing deep link working —
+            "See in Hit Rates →", "EdgeCenter →" and any bookmark. */}
+        <Route path="hit-rates" element={<Navigate to="/dashboard?tab=starters&view=hitrates" replace />} />
+        <Route path="gamecenter" element={<Navigate to="/dashboard?tab=gamecenter" replace />} />
+        <Route path="edgecenter" element={<Navigate to="/dashboard?tab=edgecenter" replace />} />
         <Route path="profiler" element={<Profiler />} />
-        <Route path="gamecenter" element={<GameCenter />} />
-        <Route path="edgecenter" element={<EdgeCenter />} />
         <Route path="ask" element={<Ask />} />
         <Route path="angles" element={<Angles />} />
       </Route>

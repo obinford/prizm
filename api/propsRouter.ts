@@ -39,6 +39,9 @@ function toPropLine(row: PropRow, player: { slug: string; name: string; team: st
     overPrice: row.priceOver,
     underPrice: row.priceUnder,
     hitRates: { L5: l5, L10: l10, L20: l20 },
+    // No recentValues on the derived/flat path — this row's hit rates come from
+    // pre-aggregated ingest output, not per-game logs. The drawer renders an
+    // explicit "no game log" state rather than inventing one.
     priceAlert,
     edgeScore,
     gameId: row.gameId,
@@ -116,6 +119,9 @@ function buildMlbProp(
     overPrice: odd.overOdds ?? odd.consOver ?? -115,
     underPrice: odd.underOdds ?? odd.consUnder ?? -115,
     hitRates: { L5: l5, L10: l10, L20: l20 },
+    // The per-game values behind those rates. Previously computed and thrown
+    // away, which forced the drawer to fabricate a hit/miss strip.
+    recentValues: values.slice(0, 20),
     priceAlert,
     edgeScore,
     gameId: slate.gameId,

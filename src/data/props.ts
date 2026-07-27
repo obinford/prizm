@@ -58,6 +58,9 @@ export interface PropLine {
   books?: number | null // number of books in consensus
   pulledAt?: string // sv_odds pulled_at (ISO)
   oddsSource?: 'sv_odds' | 'flat'
+  /** Real per-game values, most recent first (max 20). Absent when the row was
+   *  not built from game logs — consumers must not synthesise a substitute. */
+  recentValues?: number[]
 }
 
 /** Populated by hydrateLiveData() at AppShell mount. */
@@ -115,6 +118,29 @@ export function hasRealOdds(p: PropLine): boolean {
 /** Consensus over price when available, else the listed over price. */
 export function consensusOver(p: PropLine): number {
   return p.consOver ?? p.overPrice
+}
+
+/**
+ * American odds -> implied probability (0-1), vig included.
+ * NOTE: this is the RAW implied probability. It overstates true probability by
+ * roughly half the hold. Phase 3.2 replaces every consumer of this with a
+ * two-sided de-vigged probability; until then, edges computed from it are
+ * indicative only and must be labelled as such.
+ */
+export function impliedProb(price: number): number {
+  return price > 0 ? 100 / (price + 100) : -price / (-price + 100)
+}
+
+/**
+ * Observed hit rate minus raw implied probability, in percentage points.
+ * Returns null when the row has no real book odds, because an edge against an
+ * invented flat price is not an edge.
+ */
+export function rawEdgePp(p: PropLine, window: 'L5' | 'L10' | 'L20' = 'L10'): number | null {
+  if (!hasRealOdds(p)) return null
+  const rate = p.hitRates[window]
+  if (rate == null) return null
+  return (rate - impliedProb(consensusOver(p))) * 100
 }
 
 /** Consensus under price when available, else the listed under price. */

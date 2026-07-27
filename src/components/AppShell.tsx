@@ -1,29 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
+import { canStepSlateDay, SLATE_DAY_LABEL, stepSlateDay, useSlateDay } from '@/lib/slateDay'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router'
 import { motion, AnimatePresence } from 'framer-motion'
 import { format } from 'date-fns'
-import {
-  BarChart3,
-  Bookmark,
-  Bell,
-  ChevronLeft,
-  ChevronRight,
-  Crosshair,
-  Database,
-  LayoutDashboard,
-  Loader2,
-  LogOut,
-  Menu,
-  Moon,
-  ScanLine,
-  Search,
-  Sparkles,
-  Sun,
-  Target,
-  UserRound,
-  X,
-  Zap,
-} from 'lucide-react'
+import { BarChart3, Bookmark, Bell, ChevronLeft, ChevronRight, Database, LayoutDashboard, Loader2, LogOut, Menu, Moon, Search, Sparkles, Sun, UserRound, X, Zap } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { LOGIN_PATH } from '@/const'
 import { trpc } from '@/providers/trpc'
@@ -34,10 +14,7 @@ import { getPlan, onPlanChange, type Plan } from '@/lib/plan'
 const RESEARCH_NAV = [
   { label: 'Dashboards — MLB', to: '/dashboard', icon: LayoutDashboard },
   { label: 'Hockey — NHL', to: '/dashboard/hockey', icon: Zap },
-  { label: 'Hit Rates', to: '/hit-rates', icon: ScanLine },
   { label: 'Player Profiler', to: '/profiler', icon: UserRound },
-  { label: 'GameCenter', to: '/gamecenter', icon: Target },
-  { label: 'EdgeCenter', to: '/edgecenter', icon: Crosshair },
 ]
 
 const AI_NAV = [
@@ -255,6 +232,37 @@ function AuthLoadingState() {
 
 const TRIAL_DAYS = 7
 
+/**
+ * Today / Tomorrow stepper. Previously three inert elements with no handlers —
+ * it rendered the literal string "Today" and neither chevron did anything.
+ */
+function SlateStepper() {
+  const day = useSlateDay()
+  return (
+    <div className="ml-2 hidden items-center gap-1 rounded-md border border-line bg-bg-2 px-2 py-1.5 sm:flex">
+      <button
+        type="button"
+        onClick={() => stepSlateDay(-1)}
+        disabled={!canStepSlateDay(-1)}
+        className="text-text-3 transition-colors hover:text-text-1 disabled:cursor-not-allowed disabled:opacity-30"
+        aria-label="Previous day"
+      >
+        <ChevronLeft size={14} />
+      </button>
+      <span className="data-mono px-1 text-xs text-text-2">{SLATE_DAY_LABEL[day]}</span>
+      <button
+        type="button"
+        onClick={() => stepSlateDay(1)}
+        disabled={!canStepSlateDay(1)}
+        className="text-text-3 transition-colors hover:text-text-1 disabled:cursor-not-allowed disabled:opacity-30"
+        aria-label="Next day"
+      >
+        <ChevronRight size={14} />
+      </button>
+    </div>
+  )
+}
+
 export default function AppShell() {
   const location = useLocation()
   const { user, isLoading, logout } = useAuth({
@@ -371,16 +379,8 @@ export default function AppShell() {
             </button>
             <h1 className="font-display text-xl font-semibold text-text-1">{title}</h1>
 
-            {/* Slate date picker */}
-            <div className="ml-2 hidden items-center gap-1 rounded-md border border-line bg-bg-2 px-2 py-1.5 sm:flex">
-              <button type="button" className="text-text-3 hover:text-text-1" aria-label="Previous day">
-                <ChevronLeft size={14} />
-              </button>
-              <span className="data-mono px-1 text-xs text-text-2">Today</span>
-              <button type="button" className="text-text-3 hover:text-text-1" aria-label="Next day">
-                <ChevronRight size={14} />
-              </button>
-            </div>
+            {/* Slate date picker — Today / Tomorrow, wired to the slateDay store */}
+            <SlateStepper />
 
             <FreshnessChip />
 

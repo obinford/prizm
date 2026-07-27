@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router'
 import { animate, motion } from 'framer-motion'
-import { Bookmark, Check, Crosshair, FileDown, Info, Share2, Sparkles, X } from 'lucide-react'
+import { Bookmark, Crosshair, FileDown, Info, Share2, Sparkles } from 'lucide-react'
 import { format } from 'date-fns'
 import { TODAYS_SLATE } from '@/data/slate'
-import { PROPS, bestOverTag, consensusOver, formatOdds, type PropLine } from '@/data/props'
+import { PROPS, bestOverTag, consensusOver, formatOdds, impliedProb, rawEdgePp, type PropLine } from '@/data/props'
 import { getPlan, onPlanChange } from '@/lib/plan'
 import { getFollowedIds, onFollowsChange } from '@/lib/follows'
 import { DeltaChip, EdgeGauge, SportChip, ToastViewport } from './gamecenter/kit'
@@ -25,40 +25,40 @@ function topEdges(): PropLine[] {
   return rankedProps().slice(0, 8)
 }
 
+/**
+ * A factual one-liner built ONLY from values that exist on the row.
+ *
+ * The previous implementation returned canned per-market prose asserting things
+ * no data in this app supports ("barreling at a 71% clip", "this fixture has
+ * averaged north of seven goals", opponent shot volume of `line + 4`). Those
+ * sentences were attached to whichever player happened to occupy a market slot.
+ * Nothing here is asserted that is not read off the row.
+ */
 function edgeNote(p: PropLine): string {
-  const l10 = Math.round(p.hitRates.L10 * 100)
-  const l5 = Math.round(p.hitRates.L5 * 100)
-  switch (p.market) {
-    case 'XBH':
-      return `${p.player.split(' ').pop()} is barreling at a ${l10}% clip over the L10 window and the matchup context keeps the pull-side gap open ${p.opponent}.`
-    case 'Total Bases':
-      return `Form and park point the same direction — ${l5}% over the L5 with plus-money still hanging ${p.opponent}.`
-    case 'Strikeouts':
-      return `The K rate holds across every rolling window and ${p.opponent.replace('@ ', '').replace('vs ', '')} whiffs enough vs this hand to clear ${p.line}.`
-    case 'Hits':
-      return `Contact form is steady, but the number is the story — the price hasn't caught up to the ${l10}% L10 window.`
-    case 'SOG':
-      return `Shot volume is role-proof right now: ${l5}% over the L5 with top-line minutes locked in ${p.opponent}.`
-    case 'Saves':
-      return `Opponent shot volume projects ${Math.round(p.line + 4)}+ against — the line clears even with regression baked in.`
-    case 'Goals':
-      return `Finishing form plus a matchup that concedes slot chances — the over hit in ${l10}% of the L10 window.`
-    case 'Points':
-      return `Every window from L5 to L20 leans red, and this fixture has averaged north of seven goals this season.`
-    default:
-      return 'Windows, form, and price all point the same direction.'
+  const l10 = p.hitRates.L10
+  const l20 = p.hitRates.L20
+  const parts: string[] = []
+
+  if (l10 != null) {
+    parts.push(`Cleared ${p.line} in ${Math.round(l10 * 10)} of the last 10 (${Math.round(l10 * 100)}%)`)
   }
+  if (l20 != null) {
+    parts.push(`${Math.round(l20 * 100)}% over the L20`)
+  }
+
+  const edge = rawEdgePp(p)
+  if (edge != null) {
+    const price = consensusOver(p)
+    parts.push(
+      `consensus ${formatOdds(price)} implies ${Math.round(impliedProb(price) * 100)}%` +
+        ` — a ${edge >= 0 ? '+' : ''}${edge.toFixed(1)}pp gap before vig`,
+    )
+  } else {
+    parts.push('no book odds for this market — hit rate shown without a price comparison')
+  }
+
+  return parts.join(' · ') + '.'
 }
-
-const YESTERDAY_RESULTS: { label: string; w: boolean }[] = [
-  { label: 'Judge o1.5 Total Bases', w: true },
-  { label: 'Skubal o7.5 Strikeouts', w: true },
-  { label: 'McDavid o1.5 Points', w: false },
-  { label: 'Wolf o30.5 Saves', w: true },
-  { label: 'Raleigh o1.5 Total Bases', w: false },
-]
-
-const YESTERDAY_LABEL = format(new Date(Date.now() - 86400000), 'EEEE')
 
 // ---------------------------------------------------------------------------
 // Ghost rank numeral — counts 0 → position on entry
@@ -107,7 +107,11 @@ function EdgeCard({
     { dPct: hitRateTint(prop.hitRates.L20), label: `L20 form ${Math.round(prop.hitRates.L20 * 100)}%` },
   ]
   if (prop.priceAlert) {
-    chips.push({ dPct: 14, label: `Price alert · ${formatOdds(consensusOver(prop))} consensus` })
+    const alertEdge = rawEdgePp(prop)
+    chips.push({
+      dPct: alertEdge ?? 0,
+      label: `Price alert · ${formatOdds(consensusOver(prop))} consensus`,
+    })
   }
   const best = bestOverTag(prop)
   const angleTitle = `${prop.player} ${prop.market} o${prop.line} (${formatOdds(consensusOver(prop))})`
@@ -262,7 +266,7 @@ export default function EdgeCenter() {
             transition={{ duration: 0.4, delay: 0.35 }}
             className="data-mono mt-1 text-[12px] text-text-3"
           >
-            Generated 9:00 AM ET · {topEdges().length} edges found
+            {topEdges().length} edges found
           </motion.p>
         </div>
         <div className="flex items-center gap-2">
@@ -410,33 +414,19 @@ export default function EdgeCenter() {
         </>
       )}
 
-      {/* S7 — Yesterday's report card */}
+      {/* S7 — Results tracking.
+          The previous version of this footer rendered a hardcoded 3-2 record and
+          five literal named results under a live weekday label. It was a claimed
+          public track record backed by nothing. Removed. It returns when Phase
+          3.4 lands: every flagged edge written to an append-only table at flag
+          time and scored against the real closing number. */}
       <footer className="mt-12 border-t border-line pt-8">
-        <p className="overline-caption mb-4 text-text-3">
-          How {YESTERDAY_LABEL}&apos;s edges did
+        <p className="overline-caption mb-2 text-text-3">Results tracking</p>
+        <p className="max-w-2xl text-[13px] text-text-3">
+          Not live yet. Edge results will appear here once flagged edges are logged
+          and scored against closing lines — we would rather show nothing than a
+          record we cannot audit.
         </p>
-        <div className="flex flex-wrap items-center gap-2">
-          {YESTERDAY_RESULTS.map((r, i) => (
-            <motion.span
-              key={r.label}
-              initial={{ opacity: 0, scale: 0.9 }}
-              whileInView={{ opacity: 1, scale: 1 }}
-              viewport={{ once: true, amount: 0.6 }}
-              transition={{ duration: 0.3, delay: i * 0.06, ease: [0.34, 1.56, 0.64, 1] }}
-              className={`data-mono inline-flex items-center gap-1.5 rounded-sm border px-2.5 py-1.5 text-[12px] ${
-                r.w
-                  ? 'border-success/50 text-success'
-                  : 'border-line text-text-3'
-              }`}
-            >
-              {r.w ? <Check size={12} strokeWidth={2.5} /> : <X size={12} strokeWidth={2.5} />}
-              {r.label}
-            </motion.span>
-          ))}
-          <span className="data-mono ml-1 text-[12px] text-text-3">
-            3–2 · edges 80+ went 2–0
-          </span>
-        </div>
       </footer>
 
       <ToastViewport />

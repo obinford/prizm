@@ -32,6 +32,25 @@ export interface SavantWindowFields {
   avgEv?: number | null // mph
   woba?: number | null
   babip?: number | null
+  // Added with the loader-mapper fix. These are stored in sv_stat_cache and
+  // were being dropped by api/loaders.ts; two of them (gbPct, swStrPct) were
+  // simultaneously being fabricated in the Profiler.
+  //
+  // NOTE: this interface is a HAND MIRROR of contracts/prizm.ts
+  // SavantWindowFields. Extending the contract does not extend this — they
+  // drift silently and the client simply cannot see new fields. Any change to
+  // one must be made to the other until the two are unified.
+  swStrPct?: number | null // 0–100
+  zonePct?: number | null // 0–100
+  gbPct?: number | null // 0–100
+  fbPct?: number | null // 0–100
+  ldPct?: number | null // 0–100
+  iso?: number | null
+  slg?: number | null
+  avg?: number | null
+  hrPct?: number | null // 0–100
+  bbe?: number | null // batted-ball events — sample size for the contact rates
+  games?: number | null
 }
 
 /** Split-chip line (vsL/vsR/home/away) from sv_stat_cache split rows. */

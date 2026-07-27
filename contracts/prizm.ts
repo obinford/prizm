@@ -27,6 +27,20 @@ export interface SavantWindowFields {
   avgEv?: number | null; // mph
   woba?: number | null;
   babip?: number | null;
+  // Present in sv_stat_cache and previously dropped by the loader mapper, which
+  // forced several screens to invent substitutes (profiler/derive.ts:180-181
+  // synthesised GB% and SwStr% while both sat unused in the warehouse).
+  swStrPct?: number | null; // 0-100
+  zonePct?: number | null; // 0-100
+  gbPct?: number | null; // 0-100
+  fbPct?: number | null; // 0-100
+  ldPct?: number | null; // 0-100
+  iso?: number | null;
+  slg?: number | null;
+  avg?: number | null;
+  hrPct?: number | null; // 0-100
+  bbe?: number | null; // batted-ball events — sample size for the contact rates
+  games?: number | null;
 }
 
 /** Split-chip line (vsL/vsR/home/away) from sv_stat_cache split rows. */
@@ -222,6 +236,13 @@ export interface PropLine {
   books?: number | null; // number of books in consensus
   pulledAt?: string; // sv_odds pulled_at (ISO)
   oddsSource?: "sv_odds" | "flat";
+  /**
+   * Real per-game values for this stat, most recent first (max 20), straight
+   * from game_logs. Present only when the row was built from real logs.
+   * Consumers compare each value against `line` to render a genuine hit/miss
+   * history — never generate one.
+   */
+  recentValues?: number[];
 }
 
 // ── Angles (canonical frontend Angle shape) ──────────────────────────────────

@@ -1,20 +1,35 @@
-// Bullpen tab (dashboard.md §S8): one row per team — season bullpen line
-// (ERA/WHIP/K%/leverage usage), L7/L14/L30-day ERA heat windows, fatigue chip
-// from 3-day pitch counts, and a drawer with the top-4 reliever slots.
+// Bullpen tab (dashboard.md §S8): one row per team, showing the real ingested
+// team bullpen line only — ERA, WHIP, K%, BB% and the reliever count behind it.
+//
+// Removed in Phase 1 (see src/pages/dashboard/utils.ts for the full list):
+// LEV% usage, the 3-day fatigue pitch count and its chip, the L7/L14/L30 ERA
+// heat windows, and the four "top reliever" slots. None had a data source —
+// they were derived from a single hash seed and rendered as fact. Date-bucketed
+// bullpen windows and real reliever splits are buildable from game_logs and are
+// Phase 2 work.
 
 import { useMemo, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Gem, X } from 'lucide-react'
-import { deltaPct, deltaTextClass, formatDelta, heatCell } from '@/lib/heat'
 import type { BullpenRow } from './utils'
-import { BULLPEN_WINDOWS, fmtEra, fmtPct, fmtWhip, getBullpenRows, getRelievers } from './utils'
+import { fmtEra, fmtPct, fmtWhip, getBullpenRows } from './utils'
 import LegendStrip from './Legend'
 
-const FATIGUE_STYLES: Record<BullpenRow['fatigue'], { dot: string; text: string }> = {
-  Fresh: { dot: 'bg-success', text: 'text-success' },
-  Normal: { dot: 'bg-warning', text: 'text-warning' },
-  Heavy: { dot: 'bg-danger', text: 'text-danger' },
+const DASH = '—'
+
+/** Format a nullable stat; null renders an em-dash, never a substitute value. */
+function fmt(v: number | null, f: (n: number) => string): string {
+  return v == null ? DASH : f(v)
 }
+
+type NumericCol = 'era' | 'whip' | 'kPct' | 'bbPct'
+
+const COLS: { key: NumericCol; label: string; fmt: (n: number) => string }[] = [
+  { key: 'era', label: 'ERA', fmt: fmtEra },
+  { key: 'whip', label: 'WHIP', fmt: fmtWhip },
+  { key: 'kPct', label: 'K%', fmt: fmtPct },
+  { key: 'bbPct', label: 'BB%', fmt: fmtPct },
+]
 
 export interface BullpenTabProps {
   loading: boolean
@@ -23,12 +38,18 @@ export interface BullpenTabProps {
   onResetFilters: () => void
 }
 
-export default function BullpenTab({ loading, query, filterSig, onResetFilters }: BullpenTabProps) {
+export default function BullpenTab({ loading, query, onResetFilters }: BullpenTabProps) {
   const [selected, setSelected] = useState<BullpenRow | null>(null)
 
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase()
-    const all = getBullpenRows().sort((a, b) => a.era - b.era)
+    // Teams with no ingested bullpen row sort last rather than sorting as 0.00.
+    const all = getBullpenRows().sort((a, b) => {
+      if (a.era == null && b.era == null) return 0
+      if (a.era == null) return 1
+      if (b.era == null) return -1
+      return a.era - b.era
+    })
     if (!q) return all
     return all.filter(
       (r) =>
@@ -38,11 +59,11 @@ export default function BullpenTab({ loading, query, filterSig, onResetFilters }
     )
   }, [query])
 
+  const covered = rows.filter((r) => r.era != null).length
   const skeletonRows = useMemo(() => Array.from({ length: 6 }, (_, i) => i), [])
 
   return (
     <div className="prizm-card overflow-hidden">
-      {/* S4 legend */}
       <div className="border-b border-line px-5 py-3">
         <LegendStrip />
       </div>
@@ -71,6 +92,12 @@ export default function BullpenTab({ loading, query, filterSig, onResetFilters }
 
       {!loading && rows.length > 0 && (
         <>
+          {/* Provenance — which rows are backed by ingested reliever logs */}
+          <p className="data-mono border-b border-line px-5 py-2 text-[11px] text-text-3">
+            Team reliever aggregates from MLB Stats API game logs · {covered}/{rows.length} teams
+            covered{covered < rows.length ? ' · uncovered teams show —' : ''}
+          </p>
+
           {/* Desktop / tablet table */}
           <div className="hidden overflow-x-auto sm:block">
             <table className="w-full border-collapse text-sm">
@@ -78,176 +105,100 @@ export default function BullpenTab({ loading, query, filterSig, onResetFilters }
                 <tr className="bg-bg-2">
                   <th
                     scope="col"
-                    rowSpan={2}
                     className="sticky left-0 z-10 min-w-[190px] border-b border-line bg-bg-2 px-4 py-2 text-left overline-caption text-text-3"
                   >
                     Team
                   </th>
-                  <th
-                    scope="colgroup"
-                    colSpan={4}
-                    className="border-b border-l border-line px-2 py-2 text-center overline-caption text-sp-indigo"
-                    style={{ backgroundColor: 'rgba(99,102,241,0.08)' }}
-                  >
-                    Season
-                  </th>
-                  {BULLPEN_WINDOWS.map((w) => (
+                  {COLS.map((c) => (
                     <th
-                      key={w.key}
-                      scope="col"
-                      rowSpan={2}
-                      className="data-mono border-b border-l border-line px-3 py-2 text-center text-[11px] font-medium uppercase tracking-wider text-text-2"
-                    >
-                      {w.label}
-                    </th>
-                  ))}
-                  <th
-                    scope="col"
-                    rowSpan={2}
-                    className="border-b border-l border-line px-3 py-2 text-center overline-caption text-text-3"
-                  >
-                    Fatigue
-                  </th>
-                </tr>
-                <tr className="bg-bg-2">
-                  {['ERA', 'WHIP', 'K%', 'LEV%'].map((label) => (
-                    <th
-                      key={label}
+                      key={c.key}
                       scope="col"
                       className="data-mono border-b border-l border-line px-3 py-2 text-center text-[11px] font-medium uppercase tracking-wider text-text-3"
                       style={{ backgroundColor: 'rgba(99,102,241,0.05)' }}
                     >
-                      {label}
+                      {c.label}
                     </th>
                   ))}
+                  <th
+                    scope="col"
+                    className="border-b border-l border-line px-3 py-2 text-center overline-caption text-text-3"
+                    title="Distinct relievers behind the aggregate"
+                  >
+                    Arms
+                  </th>
                 </tr>
               </thead>
-              <tbody key={filterSig}>
-                {rows.map((row, rowIdx) => (
-                  <motion.tr
+              <tbody>
+                {rows.map((row) => (
+                  <tr
                     key={row.team.abbr}
-                    initial={{ opacity: 0, y: 6 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.3, delay: rowIdx * 0.02 }}
+                    className="group cursor-pointer transition-colors hover:bg-bg-2/60"
                     onClick={() => setSelected(row)}
-                    className="cursor-pointer transition-colors hover:bg-bg-3"
                   >
                     <th
                       scope="row"
-                      className="sticky left-0 z-10 border-b border-line bg-bg-1 px-4 py-3 text-left font-normal"
+                      className="sticky left-0 z-10 border-b border-line bg-bg-1 px-4 py-3 text-left font-normal group-hover:bg-bg-3"
                     >
-                      <span className="block text-sm font-semibold text-text-1">{row.team.abbr}</span>
+                      <span className="block text-sm font-semibold text-text-1">
+                        {row.team.city} {row.team.name}
+                      </span>
                       <span className="data-mono block text-[11px] text-text-3">
-                        {row.team.league} {row.team.division}
+                        {row.team.abbr} · {row.team.league} {row.team.division}
                       </span>
                     </th>
-
-                    <td className="data-mono border-b border-l border-line bg-bg-1 px-3 py-3 text-center text-[13px] text-text-1">
-                      {fmtEra(row.era)}
-                    </td>
-                    <td className="data-mono border-b border-l border-line bg-bg-2/60 px-3 py-3 text-center text-[13px] text-text-1">
-                      {fmtWhip(row.whip)}
-                    </td>
-                    <td className="data-mono border-b border-l border-line bg-bg-1 px-3 py-3 text-center text-[13px] text-text-1">
-                      {fmtPct(row.kPct)}
-                    </td>
-                    <td className="data-mono border-b border-l border-line bg-bg-2/60 px-3 py-3 text-center text-[13px] text-text-1">
-                      {row.leverage}%
-                    </td>
-
-                    {BULLPEN_WINDOWS.map((w, wIdx) => {
-                      const value = row.windows[w.key].era
-                      let dPct = deltaPct(value, row.era)
-                      dPct = -dPct // lower ERA = better
-                      const { background, textClass } = heatCell(dPct)
-                      return (
-                        <td
-                          key={w.key}
-                          className="relative border-b border-l border-line px-3 py-2 text-center"
-                          style={{ backgroundColor: background }}
-                        >
-                          <motion.span
-                            key={filterSig}
-                            initial={{ opacity: 0.55 }}
-                            animate={{ opacity: 0 }}
-                            transition={{ duration: 0.3, delay: wIdx * 0.07 }}
-                            className="pointer-events-none absolute inset-0 bg-bg-0"
-                          />
-                          <span className={`data-mono block text-[13px] font-bold ${textClass}`}>
-                            {fmtEra(value)}
+                    {COLS.map((c) => (
+                      <td
+                        key={c.key}
+                        className="data-mono border-b border-l border-line px-3 py-3 text-center text-[13px] text-text-1"
+                      >
+                        {row[c.key] == null ? (
+                          <span
+                            className="text-text-3"
+                            title="No ingested bullpen row for this team"
+                          >
+                            {DASH}
                           </span>
-                          <span className={`data-mono block text-[10px] leading-tight ${deltaTextClass(dPct)}`}>
-                            {formatDelta(row.era - value, 2)}
-                          </span>
-                        </td>
-                      )
-                    })}
-
-                    <td className="border-b border-l border-line px-3 py-2">
-                      <span className="inline-flex items-center gap-1.5 rounded-sm border border-line bg-bg-2 px-2 py-1">
-                        <span className={`h-1.5 w-1.5 rounded-full ${FATIGUE_STYLES[row.fatigue].dot}`} />
-                        <span className={`data-mono text-[11px] ${FATIGUE_STYLES[row.fatigue].text}`}>
-                          {row.fatigue}
-                        </span>
-                      </span>
+                        ) : (
+                          c.fmt(row[c.key] as number)
+                        )}
+                      </td>
+                    ))}
+                    <td className="data-mono border-b border-l border-line px-3 py-3 text-center text-[13px] text-text-3">
+                      {row.relievers ?? DASH}
                     </td>
-                  </motion.tr>
+                  </tr>
                 ))}
               </tbody>
             </table>
           </div>
 
-          {/* Mobile card view (<640px) */}
+          {/* Mobile cards */}
           <div className="space-y-3 p-4 sm:hidden">
-            {rows.map((row, i) => (
+            {rows.map((row) => (
               <motion.button
                 key={row.team.abbr}
                 type="button"
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.3, delay: i * 0.03 }}
                 onClick={() => setSelected(row)}
-                className="w-full rounded-lg border border-line bg-bg-1 p-4 text-left"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3 }}
+                className="w-full rounded-md border border-line bg-bg-2 p-4 text-left"
               >
-                <div className="mb-1 flex items-center justify-between gap-2">
-                  <span className="text-sm font-semibold text-text-1">
-                    {row.team.abbr} <span className="font-normal text-text-3">bullpen</span>
-                  </span>
-                  <span className="inline-flex items-center gap-1.5">
-                    <span className={`h-1.5 w-1.5 rounded-full ${FATIGUE_STYLES[row.fatigue].dot}`} />
-                    <span className={`data-mono text-[11px] ${FATIGUE_STYLES[row.fatigue].text}`}>
-                      {row.fatigue}
-                    </span>
-                  </span>
-                </div>
-                <p className="data-mono mb-3 text-[11px] text-text-3">
-                  ERA {fmtEra(row.era)} · WHIP {fmtWhip(row.whip)} · K {fmtPct(row.kPct)} · LEV {row.leverage}%
-                </p>
-                <div className="grid grid-cols-3 gap-2">
-                  {BULLPEN_WINDOWS.map((w) => {
-                    const value = row.windows[w.key].era
-                    const dPct = -deltaPct(value, row.era)
-                    const { background, textClass } = heatCell(dPct)
-                    return (
-                      <div key={w.key} className="rounded-md px-2 py-2" style={{ backgroundColor: background }}>
-                        <span className="data-mono block text-[10px] uppercase tracking-wide text-text-3">
-                          {w.key}
-                        </span>
-                        <span className={`data-mono text-[13px] font-bold ${textClass}`}>{fmtEra(value)}</span>
-                        <span className={`data-mono ml-1 text-[10px] ${deltaTextClass(dPct)}`}>
-                          {formatDelta(row.era - value, 2)}
-                        </span>
-                      </div>
-                    )
-                  })}
-                </div>
+                <span className="block text-sm font-semibold text-text-1">
+                  {row.team.city} {row.team.name}
+                </span>
+                <span className="data-mono mt-1 block text-[11px] text-text-3">
+                  ERA {fmt(row.era, fmtEra)} · WHIP {fmt(row.whip, fmtWhip)} · K{' '}
+                  {fmt(row.kPct, fmtPct)} · BB {fmt(row.bbPct, fmtPct)}
+                  {row.relievers != null ? ` · ${row.relievers} arms` : ''}
+                </span>
               </motion.button>
             ))}
           </div>
         </>
       )}
 
-      {/* Team bullpen drawer — top 4 reliever slots */}
+      {/* Team bullpen drawer */}
       <AnimatePresence>
         {selected && (
           <>
@@ -288,55 +239,31 @@ export default function BullpenTab({ loading, query, filterSig, onResetFilters }
               </div>
 
               <div className="mb-6 flex flex-wrap gap-2">
-                <span className="rounded-sm border border-line bg-bg-2 px-2.5 py-1.5">
-                  <span className="overline-caption mr-1.5 text-text-3">ERA</span>
-                  <span className="data-mono text-[13px] font-semibold text-text-1">{fmtEra(selected.era)}</span>
-                </span>
-                <span className="rounded-sm border border-line bg-bg-2 px-2.5 py-1.5">
-                  <span className="overline-caption mr-1.5 text-text-3">WHIP</span>
-                  <span className="data-mono text-[13px] font-semibold text-text-1">{fmtWhip(selected.whip)}</span>
-                </span>
-                <span className="rounded-sm border border-line bg-bg-2 px-2.5 py-1.5">
-                  <span className="overline-caption mr-1.5 text-text-3">K%</span>
-                  <span className="data-mono text-[13px] font-semibold text-text-1">{fmtPct(selected.kPct)}</span>
-                </span>
-                <span className="inline-flex items-center gap-1.5 rounded-sm border border-line bg-bg-2 px-2.5 py-1.5">
-                  <span className={`h-1.5 w-1.5 rounded-full ${FATIGUE_STYLES[selected.fatigue].dot}`} />
-                  <span className={`data-mono text-[11px] ${FATIGUE_STYLES[selected.fatigue].text}`}>
-                    {selected.fatigue} · {selected.fatiguePitches}p / 3d
+                {COLS.map((c) => (
+                  <span key={c.key} className="rounded-sm border border-line bg-bg-2 px-2.5 py-1.5">
+                    <span className="overline-caption mr-1.5 text-text-3">{c.label}</span>
+                    <span className="data-mono text-[13px] font-semibold text-text-1">
+                      {fmt(selected[c.key], c.fmt)}
+                    </span>
                   </span>
-                </span>
+                ))}
+                {selected.relievers != null && (
+                  <span className="rounded-sm border border-line bg-bg-2 px-2.5 py-1.5">
+                    <span className="overline-caption mr-1.5 text-text-3">Arms</span>
+                    <span className="data-mono text-[13px] font-semibold text-text-1">
+                      {selected.relievers}
+                    </span>
+                  </span>
+                )}
               </div>
 
-              <p className="overline-caption mb-2 text-text-3">Top relievers</p>
-              <div className="space-y-2">
-                {getRelievers(selected.team).map((r, i) => {
-                  const dPct = -deltaPct(r.era, selected.era)
-                  const { background, textClass } = heatCell(dPct)
-                  return (
-                    <motion.div
-                      key={r.role}
-                      initial={{ opacity: 0, x: 8 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ duration: 0.3, delay: 0.1 + i * 0.05 }}
-                      className="flex items-center justify-between rounded-md border border-line bg-bg-2 px-3 py-2.5"
-                    >
-                      <span className="text-[13px] font-medium text-text-2">{r.role}</span>
-                      <span
-                        className="data-mono rounded-sm px-2 py-1 text-[12px] font-semibold"
-                        style={{ backgroundColor: background }}
-                      >
-                        <span className={textClass}>
-                          {fmtEra(r.era)} ERA · K {fmtPct(r.kPct)}
-                        </span>
-                        <span className={`ml-1.5 text-[10px] ${deltaTextClass(dPct)}`}>
-                          {formatDelta(dPct, 1)}%
-                        </span>
-                      </span>
-                    </motion.div>
-                  )
-                })}
-              </div>
+              <p className="overline-caption mb-2 text-text-3">Reliever detail</p>
+              <p className="rounded-md border border-dashed border-line bg-bg-2/50 px-3 py-3 text-[12px] leading-relaxed text-text-3">
+                Individual reliever lines are not available yet. The previous version of this panel
+                showed four role slots (Closer / Setup / 7th / Long) whose ERA and K% were generated
+                from a single seed — no reliever was named or sourced. Real per-arm splits require
+                reliever-level aggregation from game logs.
+              </p>
             </motion.aside>
           </>
         )}

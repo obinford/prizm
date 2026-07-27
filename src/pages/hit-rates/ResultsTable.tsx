@@ -19,25 +19,7 @@ export type SortDir = 'asc' | 'desc'
 
 const WINDOW_N: Record<HitWindow, number> = { L5: 5, L10: 10, L20: 20 }
 
-function hash(s: string): number {
-  let h = 2166136261
-  for (let i = 0; i < s.length; i++) {
-    h ^= s.charCodeAt(i)
-    h = Math.imul(h, 16777619)
-  }
-  return h >>> 0
-}
 
-function stream(seed: string, n: number): number[] {
-  let a = hash(seed)
-  return Array.from({ length: n }, () => {
-    a |= 0
-    a = (a + 0x6d2b79f5) | 0
-    let t = Math.imul(a ^ (a >>> 15), 1 | a)
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
-  })
-}
 
 // ---------------------------------------------------------------------------
 // Hit-rate bar (design.md §7.11): 4px track, indigo→cyan fill, ≥70% pos-red
@@ -153,26 +135,16 @@ function ValueBadge({ rowIndex }: { rowIndex: number }) {
 
 function PropDrawer({ prop, onClose }: { prop: PropLine; onClose: () => void }) {
   const [added, setAdded] = useState(false)
+  // Real per-game outcomes from game_logs (propsRouter.recentValues), compared
+  // against the actual line. Previously both of these were hash streams: the
+  // hit/miss strip could not reconcile with the L10% shown beside it, and the
+  // "line history" sparkline had no source at all (sv_odds keeps one row per
+  // player/prop/date). The sparkline is gone until line history is retained.
   const log = useMemo(() => {
-    const r = stream(`${prop.id}-log`, 10)
-    return r.map((v) => v < prop.hitRates.L10)
+    const vals = prop.recentValues
+    if (!vals || vals.length === 0) return null
+    return vals.slice(0, 10).map((v) => v > prop.line)
   }, [prop])
-  const spark = useMemo(() => {
-    const r = stream(`${prop.id}-line`, 10)
-    const amp = prop.line <= 1 ? 0.25 : prop.line <= 2 ? 0.5 : 1
-    return r.map((v) => +(prop.line + (v - 0.5) * 2 * amp).toFixed(1))
-  }, [prop])
-
-  const pts = spark
-    .map((v, i) => {
-      const min = Math.min(...spark, prop.line)
-      const max = Math.max(...spark, prop.line)
-      const span = Math.max(0.1, max - min)
-      const x = 4 + (i / (spark.length - 1)) * 112
-      const y = 22 - ((v - min) / span) * 18
-      return `${x},${y}`
-    })
-    .join(' ')
 
   const Icon = MARKET_ICONS[prop.market]
 
@@ -270,7 +242,7 @@ function PropDrawer({ prop, onClose }: { prop: PropLine; onClose: () => void }) 
         {/* Game log strip */}
         <p className="overline-caption mb-2 text-text-3">Last 10 — over hit / miss</p>
         <div className="mb-6 flex items-center gap-1.5">
-          {log.map((hit, i) => (
+          {(log ?? []).map((hit, i) => (
             <motion.span
               key={i}
               initial={{ scale: 0, opacity: 0 }}
@@ -286,20 +258,10 @@ function PropDrawer({ prop, onClose }: { prop: PropLine; onClose: () => void }) 
           ))}
         </div>
 
-        {/* Line history sparkline */}
-        <p className="overline-caption mb-2 text-text-3">Line history — last 10 slates</p>
-        <div className="mb-6 rounded-md border border-line bg-bg-2 px-3 py-3">
-          <svg viewBox="0 0 120 28" className="h-7 w-full" preserveAspectRatio="none" aria-hidden>
-            <line x1="0" x2="120" y1="14" y2="14" stroke="var(--text-3)" strokeDasharray="3 3" strokeWidth="0.5" />
-            <polyline points={pts} fill="none" stroke="#6366F1" strokeWidth="1.5" strokeLinejoin="round" />
-          </svg>
-          <div className="mt-1 flex justify-between">
-            <span className="data-mono text-[10px] text-text-3">10 slates ago</span>
-            <span className="data-mono text-[10px] text-text-3">
-              current o{prop.line}
-            </span>
-          </div>
-        </div>
+        {/* Line history sparkline removed. sv_odds retains one row per
+            player/prop/date with a single pulled_at, so there is no historical
+            series to plot — the previous chart was `line + (hash - 0.5) * amp`.
+            Returns when odds snapshots are retained over time. */}
 
         {prop.priceAlert && (
           <div className="mb-6 flex items-start gap-2.5 rounded-md border border-sp-amber/30 bg-sp-amber/10 px-4 py-3">

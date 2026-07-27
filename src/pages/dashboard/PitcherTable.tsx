@@ -14,7 +14,7 @@ import { MLB_WINDOW_LABELS } from '@/data/mlbPlayers'
 import { deltaPct, deltaTextClass, formatDelta, heatCell } from '@/lib/heat'
 import { fmtSvPct, hasSavant } from '@/lib/savant'
 import type { SplitKey, StarterEntry } from './utils'
-import { edgeScore, fmtEra, fmtPct, fmtWhip, fmtXwoba, splitFactor } from './utils'
+import { edgeScore, fmtEra, fmtPct, fmtWhip, fmtXwoba, splitStat, splitWindowStat } from './utils'
 import { AnglePopover, Toast } from './angles'
 import { addToAngle, useToast } from './angleStore'
 import PitcherDrawer from './PitcherDrawer'
@@ -53,8 +53,8 @@ function focusStats(market: string | undefined): StatKey[] {
 
 interface Row {
   entry: StarterEntry
-  season: Record<StatKey, number>
-  windows: Record<MlbWindowKey, Record<StatKey, number> & { bf: number }>
+  season: Record<StatKey, number | null>
+  windows: Record<MlbWindowKey, Record<StatKey, number | null> & { bf: number }>
   edge: number
 }
 
@@ -99,16 +99,24 @@ export default function PitcherTable({
 
   const stats = focusStats(market)
 
+  // The STCAST badge asserts "real Statcast xwOBA". Only show it when at least
+  // one visible pitcher actually has sv coverage — otherwise the column is the
+  // OPS-derived estimate from api/ingest/mlb.ts:109 and the badge is a lie.
+  const hasRealXwoba = useMemo(
+    () => entries.some((e) => e.pitcher.xwobaReal != null),
+    [entries],
+  )
+
   const rows = useMemo<Row[]>(() => {
     return entries.map((entry) => {
       const p = entry.pitcher
-      const season = {} as Record<StatKey, number>
-      for (const s of SEASON_STATS) season[s] = p[s] * splitFactor(p.id, split, s)
+      const season = {} as Record<StatKey, number | null>
+      for (const s of SEASON_STATS) season[s] = splitStat(p, split, s)
       const wins = {} as Row['windows']
       for (const w of windows) {
         const src = p.windows[w]
-        const adj = { bf: src.bf } as Record<StatKey, number> & { bf: number }
-        for (const s of SEASON_STATS) adj[s] = src[s] * splitFactor(p.id, split, s)
+        const adj = { bf: src.bf } as Record<StatKey, number | null> & { bf: number }
+        for (const s of SEASON_STATS) adj[s] = splitWindowStat(p, w, split, s)
         wins[w] = adj
       }
       return { entry, season, windows: wins, edge: edgeScore(p) }
@@ -118,18 +126,30 @@ export default function PitcherTable({
   const sorted = useMemo(() => {
     const primary = stats[0]
     const arr = [...rows]
-    const val = (r: Row): number => {
+    // null = no real data for this cell; such rows always sort to the bottom
+    // regardless of direction, so an em-dash never outranks a real number.
+    const val = (r: Row): number | null => {
       if (sort.key === 'edge') return r.edge
       if (sort.key.startsWith('w:')) {
         const w = sort.key.slice(2) as MlbWindowKey
         const meta = STAT_META[primary]
-        let d = deltaPct(r.windows[w][primary], r.season[primary])
+        const wv = r.windows[w][primary]
+        const sv = r.season[primary]
+        if (wv == null || sv == null) return null
+        let d = deltaPct(wv, sv)
         if (meta.invert) d = -d
         return d
       }
       return r.season[sort.key as StatKey]
     }
-    arr.sort((a, b) => (val(a) - val(b)) * (sort.dir === 1 ? 1 : -1))
+    arr.sort((a, b) => {
+      const av = val(a)
+      const bv = val(b)
+      if (av == null && bv == null) return 0
+      if (av == null) return 1
+      if (bv == null) return -1
+      return (av - bv) * (sort.dir === 1 ? 1 : -1)
+    })
     return arr
   }, [rows, sort, stats])
 
@@ -259,7 +279,7 @@ export default function PitcherTable({
                         className="data-mono text-[11px] font-medium uppercase tracking-wider text-text-3 transition-colors hover:text-text-1"
                       >
                         {STAT_META[s].label} {sortArrow(s)}
-                        {s === 'xwoba' && (
+                        {s === 'xwoba' && hasRealXwoba && (
                           <span
                             className="data-mono ml-1 rounded-sm border border-sp-cyan/40 bg-sp-cyan/10 px-1 py-px text-[8px] font-bold tracking-widest text-sp-cyan"
                             title="Real Statcast xwOBA"
@@ -315,7 +335,20 @@ export default function PitcherTable({
                             i % 2 === 0 ? 'bg-bg-1' : 'bg-bg-2/60'
                           }`}
                         >
-                          {STAT_META[s].fmt(row.season[s])}
+                          {row.season[s] == null ? (
+                            <span
+                              className="text-text-3"
+                              title={
+                                split
+                                  ? `No ${STAT_META[s].label} available for this split — sv_stat_cache split rows carry K%, BB% and Statcast rates only.`
+                                  : 'No data'
+                              }
+                            >
+                              —
+                            </span>
+                          ) : (
+                            STAT_META[s].fmt(row.season[s] as number)
+                          )}
                         </td>
                       ))}
 
@@ -325,6 +358,21 @@ export default function PitcherTable({
                           const meta = STAT_META[s]
                           const season = row.season[s]
                           const value = row.windows[w][s]
+                          if (season == null || value == null) {
+                            return (
+                              <td
+                                key={`${w}-${s}`}
+                                className="data-mono border-b border-l border-line px-3 py-2 text-center text-[13px] text-text-3"
+                                title={
+                                  split
+                                    ? 'Rolling windows are unavailable while a split filter is active — Statcast splits are season-level only.'
+                                    : 'No data'
+                                }
+                              >
+                                —
+                              </td>
+                            )
+                          }
                           let dPct = deltaPct(value, season)
                           if (meta.invert) dPct = -dPct
                           const { background, textClass } = heatCell(dPct)
@@ -466,13 +514,26 @@ export default function PitcherTable({
                     {row.edge >= 75 && <Flame size={12} className="text-pos" />}
                   </div>
                   <p className="data-mono mb-3 text-[11px] text-text-3">
-                    ERA {fmtEra(row.season.era)} · WHIP {fmtWhip(row.season.whip)} · K {fmtPct(row.season.kPct)} ·
-                    BB {fmtPct(row.season.bbPct)} · xwOBA {fmtXwoba(row.season.xwoba)}
+                    ERA {row.season.era == null ? '—' : fmtEra(row.season.era)} · WHIP{' '}
+                    {row.season.whip == null ? '—' : fmtWhip(row.season.whip)} · K{' '}
+                    {row.season.kPct == null ? '—' : fmtPct(row.season.kPct)} · BB{' '}
+                    {row.season.bbPct == null ? '—' : fmtPct(row.season.bbPct)} · xwOBA{' '}
+                    {row.season.xwoba == null ? '—' : fmtXwoba(row.season.xwoba)}
                   </p>
                   <div className="grid grid-cols-2 gap-2">
                     {windows.map((w) => {
                       const season = row.season[primary]
                       const value = row.windows[w][primary]
+                      if (season == null || value == null) {
+                        return (
+                          <div
+                            key={w}
+                            className="data-mono rounded-sm border border-line px-2 py-1.5 text-[11px] text-text-3"
+                          >
+                            {MLB_WINDOW_LABELS[w].replace(' PA', '')} · —
+                          </div>
+                        )
+                      }
                       let dPct = deltaPct(value, season)
                       if (meta.invert) dPct = -dPct
                       const { background, textClass } = heatCell(dPct)

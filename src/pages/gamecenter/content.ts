@@ -11,60 +11,23 @@ import { deltaPct, formatDelta } from '@/lib/heat'
 // Deterministic hash so "vs this pitcher" history is stable across reloads
 // ---------------------------------------------------------------------------
 
-function hash(str: string): number {
-  let h = 2166136261
-  for (let i = 0; i < str.length; i++) {
-    h ^= str.charCodeAt(i)
-    h = Math.imul(h, 16777619)
-  }
-  return h >>> 0
-}
-
-/** Fake-but-stable career history line, e.g. "3-for-11, 2 XBH". */
-export function vsHistory(batterId: string, pitcherId: string): string {
-  const h = hash(`${batterId}::${pitcherId}`)
-  const ab = 7 + (h % 14) // 7–20 AB
-  const hits = Math.max(1, Math.round(ab * (0.18 + ((h >> 4) % 30) / 100)))
-  const xbh = (h >> 9) % 4
-  return `${hits}-for-${ab}${xbh > 0 ? `, ${xbh} XBH` : ''}`
-}
+// Batter-vs-pitcher career history was previously generated from a string hash
+// ("3-for-11, 2 XBH") and rendered as fact. There is no BvP table in MySQL or
+// Supabase, so it has been removed rather than approximated. If BvP is wanted
+// later it needs a real source; note also that BvP is a weak signal at these
+// sample sizes, so its absence costs little.
 
 // ---------------------------------------------------------------------------
 // AI reads — 2 authored variants for headline games + data-built fallback
 // ---------------------------------------------------------------------------
 
-const AUTHORED_READS: Record<string, string[]> = {
-  'mlb-nyy-bos': [
-    "Boston's projected lineup is running a +14% XBH delta over the L60 PA window against left-handed pitching, and Max Fried has allowed harder contact to righty bats on the road than his 3.02 ERA suggests. The wind-out-to-left report at Fenway inflates pull-side carry for both dugouts. Judge's L30 slugging window is the single reddest cell on this slate — the angle is New York's top four against Crochet's creeping walk rate.",
-    'This profiles as a batters\u2019 night disguised as a pitchers\u2019 duel. Fried and Crochet both carry sub-3.20 ERAs, but Fenway with 9 mph out to left has played +8% for XBH this season. New York\u2019s lineup owns a .336 wOBA over the L120 PA window, and Crochet\u2019s BB% vs righties has drifted up across his last three starts.',
-  ],
-  'mlb-lad-sf': [
-    'Oracle Park suppresses right-handed power by roughly 11%, which matters for a Dodgers lineup built on righty thump. Yamamoto\u2019s L120 window shows his best splitter form of the season — a 0.270 season xwOBA that tightens to the low .240s recently. Webb\u2019s ground-ball profile travels well at home; the under angles and Yamamoto strikeouts are where the spectrum glows red.',
-    'The Giants\u2019 lineup has quietly posted a +9% XBH delta over the L60 PA window, but Yamamoto is the wrong arm to chase it against — his K% holds above 29% in every window. Los Angeles counters with the league\u2019s deepest top five; Webb\u2019s home ERA is strong, yet his hard-hit rate to lefties has crept up across the L90 window.',
-  ],
-  'mlb-phi-atl': [
-    'Chris Sale at home has been the NL\u2019s toughest lefty over the L120 window, and Philadelphia\u2019s right-handed core historically fights his slider uphill. Cristopher S\u00e1nchez counters with a 2.90s-profile built on weak contact, but Atlanta\u2019s lineup is running a +11% total-bases delta over the L60 window. The angle spectrum tilts toward Atlanta bats and Sale strikeouts.',
-    'An NL East swing game with two arms trending opposite directions. S\u00e1nchez\u2019s walk rate has doubled across his last two starts — small sample, but Atlanta punishes free passes better than anyone. Sale\u2019s K% is above 30% in every rolling window, and Truist Park plays neutral enough that his strikeout line is the cleanest read on the board.',
-  ],
-  'mlb-det-cle': [
-    'Tarik Skubal carries a 31.2% season K rate into Progressive Field against a Cleveland lineup whiffing 26% against left-handed pitching over the last month. His L120 batters-faced window shows the best xwOBA of his season, so form and matchup point the same direction. Gavin Williams has the stuff to trade zeroes early — the first-five market is where this game tilts red.',
-    'Cleveland\u2019s contact-first lineup is a poor stylistic fit against peak Skubal: they don\u2019t walk, and his put-away rate with two strikes is elite in every window. The Tigers\u2019 own bats face a stern test in Williams, whose fastball velocity is up a tick over the L60 window. Expect a low-total game decided by which ace blinks first.',
-  ],
-  'mlb-hou-tex': [
-    'The Silver Boot series pairs two of the AL\u2019s form arms. Jacob deGrom\u2019s 2.96 ERA understates how dominant his L120 window has been at home, and Houston\u2019s lineup is running a slightly blue XBH delta over the L30 window. Hunter Brown\u2019s strikeout floor travels, but Texas\u2019 right-handed power matches up well with his four-seam-heavy mix at Globe Life.',
-    'deGrom at home with a 7.0 total tells you where the books stand. Houston\u2019s best angle is Brown\u2019s swing-and-miss carrying against a Rangers lineup that strikes out 24% of the time versus righties. The Astros\u2019 bullpen is rested, which shortens the game if their starter wobbles early.',
-  ],
-  'nhl-edm-cgy': [
-    'The Battle of Alberta has averaged 7.2 total goals this season, and both goalies enter with heavy recent workloads. McDavid\u2019s L120 MIN window is tracking more than 40% above his season points pace, and Calgary concedes top-five slot volume league-wide. Dustin Wolf\u2019s .931 SV% over the L240 MIN window is the counterweight — saves volume is the reddest angle on this sheet.',
-    'Edmonton brings league-best rush volume on the road (33.8 SOG), which is exactly the profile that keeps Wolf busy enough to clear his saves line even if his otherworldly L240 form regresses. Skinner has been streaky against Calgary\u2019s cycle game. Expect pace, special-teams swings, and a second-period goal burst.',
-  ],
-  'nhl-tb-fla': [
-    'A goaltending showcase: Vasilevskiy and Bobrovsky both own top-eight season GSAx marks, and Florida\u2019s structured home game suppresses rush chances. Tampa\u2019s power play is the swing factor — it\u2019s converting 28% over the last two weeks. Kucherov\u2019s points windows are neutral-to-red across every timeframe; the under and goalie saves props carry the edge here.',
-    'Sunshine State games between these two rarely open up early. Bobrovsky\u2019s L240 MIN window shows his steadiest form since March, while Vasilevskiy\u2019s rebound control has wobbled against high slot volume — Florida generates plenty. Reinhart\u2019s goal line at plus money is the value chip on an otherwise defensive card.',
-  ],
-}
+// AUTHORED_READS previously held seven hand-written multi-paragraph essays keyed
+// to specific game ids (mlb-nyy-bos, nhl-edm-cgy, ...), containing frozen
+// specifics ("3.02 ERA", "9 mph out to left", ".931 SV% over L240") that were
+// true only on the day they were written and were presented as generated
+// analysis. Removed. Only the data-built read remains; a real generator is
+// Phase 3.6.
 
-/** Data-built read used as a variant for every game (and base for others). */
 export function generatedRead(game: SlateGame): string {
   if (game.sport === 'mlb') {
     const awayP = game.awayProbableId ? getPitcher(game.awayProbableId) : undefined
@@ -85,7 +48,7 @@ export function generatedRead(game: SlateGame): string {
     const homeLine = homeP
       ? `${homeP.name} counters at ${homeP.era.toFixed(2)} with a ${(homeP.xwoba).toFixed(3)} xwOBA`
       : `the ${game.home} starter is TBD`
-    return `${awayLine}, and ${homeLine}. The ${game.away} lineup is running a ${formatDelta(awayXbh, 1)}% XBH delta over the L60 PA window, while ${game.home} sits at ${formatDelta(homeXbh, 1)}% — the side with the redder window owns the early-count leverage at ${game.venue}.${game.note ? ` ${game.note}.` : ''} Watch the total at ${game.total ?? 8.5}: both pens are rested behind the aces.`
+    return `${awayLine}, and ${homeLine}. The ${game.away} lineup is running a ${formatDelta(awayXbh, 1)}% XBH delta over the L60 PA window, while ${game.home} sits at ${formatDelta(homeXbh, 1)}% — the side with the redder window owns the early-count leverage at ${game.venue}.${game.note ? ` ${game.note}.` : ''} ${game.total != null ? ` Total is ${game.total}.` : ''}`
   }
   const awayG = game.awayProbableId ? getGoalie(game.awayProbableId) : undefined
   const homeG = game.homeProbableId ? getGoalie(game.homeProbableId) : undefined
@@ -103,13 +66,12 @@ export function generatedRead(game: SlateGame): string {
       : 0
   const g1 = awayG ? `${awayG.name} (.${String(Math.round(awayG.svPct * 1000))} SV%)` : 'a TBD goalie'
   const g2 = homeG ? `${homeG.name} (.${String(Math.round(homeG.svPct * 1000))} SV%)` : 'a TBD goalie'
-  return `${game.away} starts ${g1} against ${game.home}'s ${g2} at ${game.venue}. Skater form over the L120 MIN window: ${game.away} at ${formatDelta(awayForm, 1)}% and ${game.home} at ${formatDelta(homeForm, 1)}% vs season points pace.${game.note ? ` ${game.note}.` : ''} With the total at ${game.total ?? 6.0}, the saves and shot-volume props carry the cleanest edges on this matchup.`
+  return `${game.away} starts ${g1} against ${game.home}'s ${g2} at ${game.venue}. Skater form over the L120 MIN window: ${game.away} at ${formatDelta(awayForm, 1)}% and ${game.home} at ${formatDelta(homeForm, 1)}% vs season points pace.${game.note ? ` ${game.note}.` : ''} ${game.total != null ? ` Total is ${game.total}.` : ''}`
 }
 
+
 export function getAiReads(game: SlateGame): string[] {
-  const authored = AUTHORED_READS[game.id] ?? []
-  const generated = generatedRead(game)
-  return authored.length > 0 ? [...authored, generated] : [generated]
+  return [generatedRead(game)]
 }
 
 // ---------------------------------------------------------------------------

@@ -19,7 +19,7 @@ import { MLB_WINDOW_KEYS, MLB_WINDOW_LABELS } from '@/data/mlbPlayers'
 import { deltaPct, deltaTextClass, formatDelta, heatCell, heatSolid } from '@/lib/heat'
 import { fmtRate, fmtSvPct, svSplitChips } from '@/lib/savant'
 import type { SplitKey, StarterEntry } from './utils'
-import { fmtEra, fmtPct, fmtWhip, splitFactor } from './utils'
+import { fmtEra, fmtPct, fmtWhip, splitSample, splitStat, splitWindowStat } from './utils'
 import { AnglePopover } from './angles'
 import { addToAngle } from './angleStore'
 
@@ -34,46 +34,47 @@ export default function PitcherDrawer({ entry, split, onClose, onToast }: Pitche
   const [angleOpen, setAngleOpen] = useState(false)
 
   const p = entry?.pitcher
-  const seasonK = p ? p.kPct * splitFactor(p.id, split, 'kPct') : 0
+  // Real season/split values only. null => no source for this split (see
+  // splitStat in ./utils) and the UI renders an em-dash instead of a number.
+  const seasonK = p ? splitStat(p, split, 'kPct') : null
+  const seasonEra = p ? splitStat(p, split, 'era') : null
+  const seasonWhip = p ? splitStat(p, split, 'whip') : null
+  const seasonBb = p ? splitStat(p, split, 'bbPct') : null
+  const splitTbf = p ? splitSample(p, split) : null
+  const DASH = '—'
 
   const chartData =
     p &&
     MLB_WINDOW_KEYS.map((w) => {
-      const value = p.windows[w].kPct * splitFactor(p.id, split, 'kPct')
+      // sv has no window x split cross-section, so an active split zeroes the
+      // rolling chart rather than plotting invented values.
+      const value = splitWindowStat(p, w, split, 'kPct')
       return {
         window: MLB_WINDOW_LABELS[w].replace(' PA', ''),
-        k: +(value * 100).toFixed(1),
-        dPct: deltaPct(value, seasonK),
+        k: value == null ? null : +(value * 100).toFixed(1),
+        dPct: value == null || seasonK == null ? 0 : deltaPct(value, seasonK),
       }
     })
 
   // Real sv split chips (vs L / vs R / Home / Away) when the Statcast warehouse
   // covers this pitcher; legacy MySQL-derived chips otherwise. sv split kPct is
   // 0–100 — compared against the season legacy kPct ×100.
+  // Real sv split chips (vs L / vs R / Home / Away). When the Statcast
+  // warehouse does not cover this pitcher there is no second-best source, so
+  // the section renders an explicit empty state rather than a synthetic one.
   const realSplits = p ? svSplitChips(p.splits) : []
   const splits =
     p &&
-    (realSplits.length > 0
-      ? realSplits.map(({ label, line }) => {
-          const k100 = line.kPct ?? null
-          const xw = line.xwobaReal ?? line.xwoba ?? null
-          return {
-            label,
-            kText: k100 != null ? fmtSvPct(k100) : xw != null ? `xwOBA ${fmtRate(xw)}` : '—',
-            dPct: k100 != null ? deltaPct(k100, p.kPct * 100) : 0,
-          }
-        })
-      : (
-          [
-            ['vs LHB', 'vs-lhb'],
-            ['vs RHB', 'vs-rhb'],
-            ['Home', 'home'],
-            ['Away', 'away'],
-          ] as [string, SplitKey][]
-        ).map(([label, key]) => {
-          const k = p.kPct * splitFactor(p.id, key, 'kPct')
-          return { label, kText: fmtPct(k), dPct: deltaPct(k, p.kPct) }
-        }))
+    realSplits.map(({ label, line }) => {
+      const k100 = line.kPct ?? null
+      const xw = line.xwobaReal ?? line.xwoba ?? null
+      return {
+        label,
+        kText: k100 != null ? fmtSvPct(k100) : xw != null ? `xwOBA ${fmtRate(xw)}` : '—',
+        dPct: k100 != null ? deltaPct(k100, p.kPct * 100) : 0,
+        sample: line.pa ?? null,
+      }
+    })
 
   const saveAngle = (angleId: string | null, newName?: string) => {
     if (!entry) return
@@ -127,13 +128,20 @@ export default function PitcherDrawer({ entry, split, onClose, onToast }: Pitche
             </div>
 
             {/* Season line chips (+ real Statcast chips when covered) */}
+            {split && (
+              <p className="data-mono mb-2 text-[11px] text-text-3">
+                {splitTbf != null
+                  ? `Split view · real Statcast, ${splitTbf} BF. ERA and WHIP have no split source and show —.`
+                  : 'Split view · no Statcast split coverage for this pitcher — values show —.'}
+              </p>
+            )}
             <div className="mb-6 flex flex-wrap gap-2">
               {(
                 [
-                  ['ERA', fmtEra(p.era * splitFactor(p.id, split, 'era')), false],
-                  ['WHIP', fmtWhip(p.whip * splitFactor(p.id, split, 'whip')), false],
-                  ['K%', fmtPct(seasonK), false],
-                  ['BB%', fmtPct(p.bbPct * splitFactor(p.id, split, 'bbPct')), false],
+                  ['ERA', seasonEra == null ? DASH : fmtEra(seasonEra), false],
+                  ['WHIP', seasonWhip == null ? DASH : fmtWhip(seasonWhip), false],
+                  ['K%', seasonK == null ? DASH : fmtPct(seasonK), false],
+                  ['BB%', seasonBb == null ? DASH : fmtPct(seasonBb), false],
                   ...(p.barrelPct != null ? [['Barrel%', fmtSvPct(p.barrelPct), true] as [string, string, boolean]] : []),
                   ...(p.hardHitPct != null ? [['HH%', fmtSvPct(p.hardHitPct), true] as [string, string, boolean]] : []),
                 ] as [string, string, boolean][]
@@ -181,7 +189,7 @@ export default function PitcherDrawer({ entry, split, onClose, onToast }: Pitche
                       formatter={(value) => [`${value}%`, 'K%']}
                     />
                     <ReferenceLine
-                      y={+(seasonK * 100).toFixed(1)}
+                      y={seasonK == null ? 0 : +(seasonK * 100).toFixed(1)}
                       stroke="#5C6488"
                       strokeDasharray="4 4"
                       label={{
@@ -212,6 +220,12 @@ export default function PitcherDrawer({ entry, split, onClose, onToast }: Pitche
               )}
             </p>
             <div className="mb-6 space-y-2">
+              {splits.length === 0 && (
+                <p className="rounded-md border border-dashed border-line bg-bg-2/50 px-3 py-3 text-[12px] text-text-3">
+                  No Statcast split coverage for this pitcher. Splits are shown only when
+                  sv_stat_cache has a vs-L / vs-R / Home / Away row — they are never estimated.
+                </p>
+              )}
               {splits.map((s, i) => {
                 const { background, textClass } = heatCell(s.dPct)
                 return (
@@ -231,6 +245,9 @@ export default function PitcherDrawer({ entry, split, onClose, onToast }: Pitche
                       <span className={`ml-1.5 text-[10px] ${deltaTextClass(s.dPct)}`}>
                         {formatDelta(s.dPct, 1)}%
                       </span>
+                      {s.sample != null && (
+                        <span className="ml-1.5 text-[10px] text-text-3">over {s.sample} BF</span>
+                      )}
                     </span>
                   </motion.div>
                 )

@@ -18,7 +18,7 @@ import { getGoalie } from '@/data/nhlPlayers'
 import { deltaTextClass } from '@/lib/heat'
 import { ConfidenceMeter, DeltaChip } from './kit'
 import { saveAngle } from './utils'
-import { getAiReads, getGameAngles, vsHistory } from './content'
+import { getAiReads, getGameAngles } from './content'
 
 // ---------------------------------------------------------------------------
 // AI read paragraph — word-stagger reveal, regenerate cycles variants
@@ -234,21 +234,10 @@ export default function GameDetail({
     ].map(skaterToSplit)
   }, [game])
 
-  const historyChips = useMemo(() => {
-    if (game.sport !== 'mlb') return []
-    const chips: string[] = []
-    const homeBat = getTeamBatters(game.home).slice(0, 3)
-    const awayBat = getTeamBatters(game.away).slice(0, 3)
-    if (game.awayProbableId)
-      homeBat.forEach((b) =>
-        chips.push(`${b.name.split(' ').pop()} vs ${game.awayProbable?.split(' ').pop()}: ${vsHistory(b.id, game.awayProbableId!)}`),
-      )
-    if (game.homeProbableId)
-      awayBat.forEach((b) =>
-        chips.push(`${b.name.split(' ').pop()} vs ${game.homeProbable?.split(' ').pop()}: ${vsHistory(b.id, game.homeProbableId!)}`),
-      )
-    return chips
-  }, [game])
+  // Batter-vs-pitcher history removed — it was hash-generated (see
+  // gamecenter/content.ts). No BvP source exists; an empty list hides the
+  // section rather than filling it with invented career lines.
+  const historyChips: string[] = []
 
   const starterChip = (name?: string, line?: string) =>
     name ? (

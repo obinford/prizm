@@ -68,6 +68,17 @@ function svWindowFields(r: SvStatRow): SavantWindowFields {
     avgEv: r.avg_ev,
     woba: r.woba,
     babip: r.babip,
+    swStrPct: r.swstr_pct,
+    zonePct: r.zone_pct,
+    gbPct: r.gb_pct,
+    fbPct: r.fb_pct,
+    ldPct: r.ld_pct,
+    iso: r.iso,
+    slg: r.slg,
+    avg: r.avg,
+    hrPct: r.hr_pct,
+    bbe: r.bbe,
+    games: r.g,
   };
 }
 
