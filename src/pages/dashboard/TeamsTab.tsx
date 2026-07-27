@@ -56,7 +56,7 @@ export default function TeamsTab({ loading, query, filterSig, onResetFilters }: 
 
   // Join the warehouse line (MLBAM-style abbr) to the local team record
   // (classic abbr) through the shared alias — never string-match raw.
-  const { rows, unmatched } = useMemo(() => {
+  const { league, rows, unmatched } = useMemo(() => {
     const out: TeamRow[] = []
     const missed: string[] = []
     for (const stats of response?.teams ?? []) {
@@ -76,27 +76,36 @@ export default function TeamsTab({ loading, query, filterSig, onResetFilters }: 
             r.team.name.toLowerCase().includes(q),
         )
       : out
-    return { rows: filtered, unmatched: missed }
+    return { league: out, rows: filtered, unmatched: missed }
   }, [response, query])
 
-  // Heat baseline: the league mean per column across the rows in view. A team
-  // has no "own baseline" — this is a different meaning of colour than the
-  // player tables, and the provenance line says so.
+  // Heat baseline: the league mean per column. A team has no "own baseline" —
+  // this is a different meaning of colour than the player tables, and the
+  // provenance line says so.
+  //
+  // Computed over `league` (every joined team), NOT `rows` (the search-filtered
+  // view). Deriving it from the visible rows makes the search box silently
+  // redefine what the colours mean: search one team and it becomes its own
+  // baseline, so every cell goes neutral; search "new" and two clubs become
+  // "the league". The colours would still look authoritative while measuring
+  // something the provenance line does not claim.
   const leagueMeans = useMemo(() => {
     const means: Record<string, number | null> = {}
     for (const key of HEATED_KEYS) {
-      const vals = rows
+      const vals = league
         .map((r) => r.stats[key as keyof MlbTeamStats])
         .filter((v): v is number => typeof v === 'number')
       means[key] = vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null
     }
     return means
-  }, [rows])
+  }, [league])
 
   const columns = useMemo(() => teamColumns(leagueMeans), [leagueMeans])
 
   const provenance = response
-    ? `Baseball Savant → sv_stat_cache · ${rows.length}/30 teams · min ${response.qualifierPa} PA · heat vs 30-team mean, not a team's own history${
+    ? `Baseball Savant → sv_stat_cache · ${league.length}/30 teams${
+        rows.length !== league.length ? ` · ${rows.length} shown` : ''
+      } · min ${response.qualifierPa} PA · heat vs ${league.length}-team mean, not a team's own history${
         response.builtAt ? ` · updated ${response.builtAt.slice(0, 10)}` : ''
       }${unmatched.length ? ` · unmapped team_id abbr: ${unmatched.join(', ')}` : ''}`
     : undefined
