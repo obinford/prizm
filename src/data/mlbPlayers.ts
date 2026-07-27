@@ -16,13 +16,15 @@ export const MLB_WINDOW_LABELS: Record<MlbWindowKey, string> = {
 }
 
 // ── Statcast warehouse (sv_*) additive fields ───────────────────────────────
-// Mirrors contracts/prizm.ts SavantWindowFields. SCALE: sv percent fields
-// (barrelPct/hardHitPct/whiffPct/cswPct, and split-line kPct/bbPct) are 0–100
-// as served — unlike legacy kPct/bbPct on the season/window rows which are
-// 0–1. Rate stats (xwobaReal/xba/xslg/woba/babip) are 0–1; avgEv is mph.
+// Mirrors contracts/prizm.ts SavantSplitFields / SavantWindowFields.
+// SCALE: sv percent fields (barrelPct/hardHitPct/whiffPct/cswPct, and
+// split-line kPct/bbPct) are 0–100 as served — unlike legacy kPct/bbPct on
+// the season/window rows which are 0–1. Rate stats (xwobaReal/xba/xslg/woba/
+// babip) are 0–1; avgEv is mph.
 
-export interface SavantWindowFields {
-  xwobaReal?: number | null // real Statcast xwOBA (`xwoba` mirrors it when covered)
+/** Fields served on BOTH season/window rows and split lines — exactly the
+ * toMetrics() set in api/supabase/savant.ts. */
+export interface SavantSplitFields {
   xba?: number | null
   xslg?: number | null
   barrelPct?: number | null // 0–100
@@ -32,6 +34,13 @@ export interface SavantWindowFields {
   avgEv?: number | null // mph
   woba?: number | null
   babip?: number | null
+}
+
+export interface SavantWindowFields extends SavantSplitFields {
+  xwobaReal?: number | null // real Statcast xwOBA (`xwoba` mirrors it when covered)
+  // Season/window-only fields. Split lines do NOT carry these — toSplitLine()
+  // serves only the shared metrics + pa/kPct/bbPct — so the split-line type
+  // must not promise them.
   // Added with the loader-mapper fix. These are stored in sv_stat_cache and
   // were being dropped by api/loaders.ts; two of them (gbPct, swStrPct) were
   // simultaneously being fabricated in the Profiler.
@@ -53,12 +62,14 @@ export interface SavantWindowFields {
   games?: number | null
 }
 
-/** Split-chip line (vsL/vsR/home/away) from sv_stat_cache split rows. */
-export interface SavantSplitLine extends SavantWindowFields {
+/** Split-chip line (vsL/vsR/home/away) from sv_stat_cache split rows.
+ * Extends SavantSplitFields only: split rows are served the shared metrics
+ * plus the four below — never the season/window-only fields. */
+export interface SavantSplitLine extends SavantSplitFields {
+  xwoba?: number | null // split rows serve the real xwOBA under `xwoba`
   pa?: number | null
   kPct?: number | null // 0–100 (sv scale)
   bbPct?: number | null // 0–100 (sv scale)
-  xwoba?: number | null // split rows serve the real xwOBA under `xwoba`
 }
 
 export interface SavantSplits {

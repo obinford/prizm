@@ -42,8 +42,8 @@ const pitcher: Pitcher = {
     L120: { bf: 448, era: 2.18, whip: 0.92, kPct: 0.315, bbPct: 0.052, xwoba: 0.26 },
   },
   splits: {
-    vsL: { pa: 96, kPct: 34.4, bbPct: 3.1, xwobaReal: 0.238 }, // sv scale 0–100
-    vsR: { pa: 412, kPct: 30.8, bbPct: 5.6, xwobaReal: 0.267 },
+    vsL: { pa: 96, kPct: 34.4, bbPct: 3.1, xwoba: 0.238 }, // sv scale 0–100
+    vsR: { pa: 412, kPct: 30.8, bbPct: 5.6, xwoba: 0.267 },
     home: { pa: 260, kPct: 32.1, bbPct: 4.8 },
     away: { pa: 248, kPct: 30.2, bbPct: 5.4 },
   },

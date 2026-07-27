@@ -67,7 +67,7 @@ export default function PitcherDrawer({ entry, split, onClose, onToast }: Pitche
     p &&
     realSplits.map(({ label, line }) => {
       const k100 = line.kPct ?? null
-      const xw = line.xwobaReal ?? line.xwoba ?? null
+      const xw = line.xwoba ?? null
       return {
         label,
         kText: k100 != null ? fmtSvPct(k100) : xw != null ? `xwOBA ${fmtRate(xw)}` : '—',

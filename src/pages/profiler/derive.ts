@@ -1,20 +1,18 @@
 // Player Profiler — derivations layered on top of src/data seeds.
 // Phase 1 cleanup: fabricated generators (game logs, trend series, similarity,
 // form delta, goalie/skater header extras, unsupported split categories) were
-// deleted because no data source exists for them. Remaining hash-based values
-// (batter K%/BB%/xwOBA, pitcher GB%/SwStr%, vs-L/R + home/away split cards)
-// are flagged REWIRE and are being connected to real warehouse splits in
-// parallel work — do not "fix" them here.
+// deleted because no data source exists for them.
+// Phase 1 REWIRE: batter K%/BB%/xwOBA, pitcher GB%/SwStr% and the vs-L/R +
+// home/away split cards now read the real sv warehouse fields attached by
+// api/loaders.ts (xwobaReal, gbPct, swStrPct, splits.vsL/vsR/home/away).
+// With that, the name-hash RNG is gone from this module entirely.
 
-import { BATTERS, PITCHERS, type Batter, type Pitcher } from '@/data/mlbPlayers'
+import { BATTERS, PITCHERS, type Batter, type Pitcher, type SavantSplitLine } from '@/data/mlbPlayers'
 import { GOALIES, SKATERS, type Goalie, type Skater } from '@/data/nhlPlayers'
 import { deltaPct } from '@/lib/heat'
 
 export type AnyPlayer = Pitcher | Batter | Goalie | Skater
 export type PlayerKind = 'pitcher' | 'batter' | 'goalie' | 'skater'
-
-const MLB_KEYS = ['L30', 'L60', 'L90', 'L120'] as const
-const NHL_KEYS = ['MIN60', 'MIN120', 'MIN180', 'MIN240'] as const
 
 export function kindOf(p: AnyPlayer): PlayerKind {
   return p.kind
@@ -38,31 +36,26 @@ export function handLabel(p: AnyPlayer): string {
 }
 
 // ---------------------------------------------------------------------------
-// Deterministic RNG
+// Small helpers
 // ---------------------------------------------------------------------------
-
-export function hashString(s: string): number {
-  let h = 2166136261
-  for (let i = 0; i < s.length; i++) {
-    h ^= s.charCodeAt(i)
-    h = Math.imul(h, 16777619)
-  }
-  return h >>> 0
-}
-
-function mulberry32(seed: number) {
-  let a = seed >>> 0
-  return () => {
-    a |= 0
-    a = (a + 0x6d2b79f5) | 0
-    let t = Math.imul(a ^ (a >>> 15), 1 | a)
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
-  }
-}
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v))
 const fmt3 = (v: number) => v.toFixed(3).replace(/^0/, '')
+
+/** Sample-weighted mean of a 0–100 rate across sv split rows (e.g. season
+ * K% ≈ PA-weighted vsL + vsR). Pure arithmetic on real rows; null when the
+ * rows or their samples aren't there. */
+function splitWeighted(lines: (SavantSplitLine | undefined)[], key: 'kPct' | 'bbPct'): number | null {
+  let num = 0
+  let den = 0
+  for (const l of lines) {
+    const v = l?.[key]
+    if (v == null || l?.pa == null) continue
+    num += v * l.pa
+    den += l.pa
+  }
+  return den > 0 ? num / den : null
+}
 
 // ---------------------------------------------------------------------------
 // Lookup helpers
@@ -149,7 +142,8 @@ export function formScore(p: AnyPlayer): number {
 }
 
 // ---------------------------------------------------------------------------
-// Header stat grid — 8 stats per player type (derived where seed data ends)
+// Header stat grid — seed stats plus the real sv warehouse fields. Anything
+// without a source renders an em-dash, never an estimate.
 // ---------------------------------------------------------------------------
 
 export interface HeaderStat {
@@ -158,35 +152,34 @@ export interface HeaderStat {
 }
 
 export function headerStats(p: AnyPlayer): HeaderStat[] {
-  const rand = mulberry32(hashString(`${p.id}-extras`))
   if (p.kind === 'batter') {
-    const kPct = clamp(0.34 - p.avg * 0.55 - p.iso * 0.1 + (rand() - 0.5) * 0.05, 0.1, 0.32)
-    const bbPct = clamp((p.obp - p.avg) * 0.9 + (rand() - 0.5) * 0.015, 0.03, 0.18)
-    const xwoba = clamp(0.2 + p.obp * 0.28 + p.iso * 0.55 + (rand() - 0.5) * 0.02, 0.25, 0.48)
+    // Season K%/BB% aren't served as single rows; they are the PA-weighted
+    // combination of the real vsL/vsR split rows. xwOBA is the real Statcast
+    // value — em-dash when the warehouse has no coverage for this player.
+    const kPct = splitWeighted([p.splits?.vsL, p.splits?.vsR], 'kPct')
+    const bbPct = splitWeighted([p.splits?.vsL, p.splits?.vsR], 'bbPct')
     return [
       { label: 'AVG', value: fmt3(p.avg) },
       { label: 'OBP', value: fmt3(p.obp) },
       { label: 'ISO', value: fmt3(p.iso) },
       { label: 'XBH/G', value: p.xbh.toFixed(2) },
       { label: 'TB/G', value: p.tb.toFixed(2) },
-      { label: 'K%', value: `${(kPct * 100).toFixed(1)}%` },
-      { label: 'BB%', value: `${(bbPct * 100).toFixed(1)}%` },
-      { label: 'xwOBA', value: fmt3(xwoba) },
+      { label: 'K%', value: kPct == null ? '—' : `${kPct.toFixed(1)}%` },
+      { label: 'BB%', value: bbPct == null ? '—' : `${bbPct.toFixed(1)}%` },
+      { label: 'xwOBA', value: p.xwobaReal == null ? '—' : fmt3(p.xwobaReal) },
     ]
   }
   if (p.kind === 'pitcher') {
-    const gbPct = clamp(0.38 + (0.3 - p.kPct) * 0.3 + (rand() - 0.5) * 0.08, 0.3, 0.58)
-    const swStr = clamp(p.kPct * 0.45 + (rand() - 0.5) * 0.02, 0.08, 0.18)
-    const ipg = clamp(5.2 + (3.5 - p.era) * 0.5 + (rand() - 0.5) * 0.6, 4.0, 6.9)
+    // GB% / SwStr% are the real sv season fields. Deleted: IP/G — it was
+    // jittered from ERA and no innings-per-game source exists.
     return [
       { label: 'ERA', value: p.era.toFixed(2) },
       { label: 'WHIP', value: p.whip.toFixed(2) },
       { label: 'K%', value: `${(p.kPct * 100).toFixed(1)}%` },
       { label: 'BB%', value: `${(p.bbPct * 100).toFixed(1)}%` },
       { label: 'xwOBA', value: fmt3(p.xwoba) },
-      { label: 'GB%', value: `${(gbPct * 100).toFixed(1)}%` },
-      { label: 'SwStr%', value: `${(swStr * 100).toFixed(1)}%` },
-      { label: 'IP/G', value: ipg.toFixed(1) },
+      { label: 'GB%', value: p.gbPct == null ? '—' : `${p.gbPct.toFixed(1)}%` },
+      { label: 'SwStr%', value: p.swStrPct == null ? '—' : `${p.swStrPct.toFixed(1)}%` },
     ]
   }
   if (p.kind === 'goalie') {
@@ -208,88 +201,55 @@ export function headerStats(p: AnyPlayer): HeaderStat[] {
 }
 
 // ---------------------------------------------------------------------------
-// Split cards (2×3 grid) — big value + delta chip + 4-window heat strip
+// Split cards — real sv warehouse splits (vsL / vsR / home / away), season
+// level. The card value is split xwOBA: sv serves no ERA or AVG by split,
+// and xwOBA is the one rate stat present on every split row. The previous
+// 4-window heat strip is gone — sv splits are season-level only, so there
+// is no split-by-window data to show (the dashboard made the same call).
+// NHL players have no split source at all and get an honest note instead.
 // ---------------------------------------------------------------------------
 
 export interface SplitCardData {
   title: string
+  /** split xwOBA, or — when this split row isn't covered */
   value: string
-  /** raw % delta vs season baseline (stat direction) */
-  deltaPct: number
-  /** lower-is-better stat (ERA) — flips heat polarity */
+  /** raw % delta vs the season xwOBA baseline; null when either side is missing */
+  deltaPct: number | null
+  /** lower-is-better stat (pitcher xwOBA) — flips chip polarity */
   invert?: boolean
-  /** raw % deltas across the 4 rolling windows */
-  windows: number[]
-  windowLabels: string[]
+  /** sample behind the split row — PA for batters, TBF for pitchers */
+  sample: number | null
 }
 
 export function splitCards(p: AnyPlayer): SplitCardData[] {
-  const rand = mulberry32(hashString(`${p.id}-splits`))
-  const jitterWin = (base: number, f: number) => base * (f + (rand() - 0.5) * 0.05)
+  if (p.kind !== 'batter' && p.kind !== 'pitcher') return []
 
-  if (p.kind === 'batter') {
-    const defs = [
-      { title: 'vs LHP', f: 0.86 + rand() * 0.28 },
-      { title: 'vs RHP', f: 0.86 + rand() * 0.28 },
-      { title: 'Home', f: 0.92 + rand() * 0.16 },
-      { title: 'Away', f: 0.92 + rand() * 0.16 },
-      // Deleted: Day games, Night games — no day/night split exists in any source.
-    ]
-    return defs.map((d) => ({
-      title: d.title,
-      value: fmt3(p.avg * d.f),
-      deltaPct: (d.f - 1) * 100,
-      windows: MLB_KEYS.map((k) => deltaPct(jitterWin(p.windows[k].avg, d.f), p.avg)),
-      windowLabels: ['L30', 'L60', 'L90', 'L120'],
-    }))
-  }
+  const batter = p.kind === 'batter'
+  // Season baseline: real Statcast xwOBA. Pitcher `xwoba` mirrors it when
+  // covered, so it is a safe fallback there; uncovered players dash anyway.
+  const seasonXwoba = p.xwobaReal ?? (batter ? null : p.xwoba)
 
-  if (p.kind === 'pitcher') {
-    const defs = [
-      { title: 'vs LHB', f: 0.8 + rand() * 0.4 },
-      { title: 'vs RHB', f: 0.8 + rand() * 0.4 },
-      { title: 'Home', f: 0.85 + rand() * 0.3 },
-      { title: 'Away', f: 0.85 + rand() * 0.3 },
-      // Deleted: 1st/3rd time through the order — no times-through split exists in any source.
-    ]
-    return defs.map((d) => ({
-      title: d.title,
-      value: (p.era * d.f).toFixed(2),
-      deltaPct: (d.f - 1) * 100,
-      invert: true,
-      windows: MLB_KEYS.map((k) => deltaPct(jitterWin(p.windows[k].era, d.f), p.era)),
-      windowLabels: ['L30', 'L60', 'L90', 'L120'],
-    }))
-  }
+  const defs: { title: string; line: SavantSplitLine | undefined }[] = batter
+    ? [
+        { title: 'vs LHP', line: p.splits?.vsL },
+        { title: 'vs RHP', line: p.splits?.vsR },
+        { title: 'Home', line: p.splits?.home },
+        { title: 'Away', line: p.splits?.away },
+      ]
+    : [
+        { title: 'vs LHB', line: p.splits?.vsL },
+        { title: 'vs RHB', line: p.splits?.vsR },
+        { title: 'Home', line: p.splits?.home },
+        { title: 'Away', line: p.splits?.away },
+      ]
 
-  if (p.kind === 'goalie') {
-    const defs = [
-      { title: 'Home', f: 1 + (rand() - 0.5) * 0.03 },
-      { title: 'Away', f: 1 + (rand() - 0.5) * 0.03 },
-      // Deleted: vs Top-10/Bottom-10, 2+ days rest, Back-to-back — no opponent-tier
-      // or rest split exists in any source.
-    ]
-    return defs.map((d) => ({
-      title: d.title,
-      value: fmt3(p.svPct * d.f),
-      deltaPct: (d.f - 1) * 100,
-      windows: NHL_KEYS.map((k) => deltaPct(jitterWin(p.windows[k].svPct, d.f), p.svPct)),
-      windowLabels: ['60', '120', '180', '240'],
-    }))
-  }
-
-  const defs = [
-    { title: 'Home', f: 0.8 + rand() * 0.45 },
-    { title: 'Away', f: 0.8 + rand() * 0.45 },
-    // Deleted: vs Top-10/Bottom-10, vs Division/Non-division — no opponent-tier
-    // or division split exists in any source.
-  ]
-  return defs.map((d) => ({
-    title: d.title,
-    value: (p.sog * d.f).toFixed(1),
-    deltaPct: (d.f - 1) * 100,
-    windows: NHL_KEYS.map((k) => deltaPct(jitterWin(p.windows[k].sog, d.f), p.sog)),
-    windowLabels: ['60', '120', '180', '240'],
+  return defs.map(({ title, line }) => ({
+    title,
+    value: line?.xwoba == null ? '—' : fmt3(line.xwoba),
+    deltaPct:
+      line?.xwoba != null && seasonXwoba != null ? deltaPct(line.xwoba, seasonXwoba) : null,
+    invert: !batter,
+    sample: line?.pa ?? null,
   }))
 }
 

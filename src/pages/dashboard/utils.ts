@@ -120,7 +120,7 @@ export function splitStat(
   if (!isSplittable(stat)) return null // ERA / WHIP have no split source
   const line = p.splits?.[SV_SPLIT[split]]
   if (!line) return null // pitcher not covered by Statcast for this split
-  if (stat === 'xwoba') return line.xwobaReal ?? line.xwoba ?? null
+  if (stat === 'xwoba') return line.xwoba ?? null
   // sv k_pct / bb_pct are 0-100; legacy season/window values are 0-1.
   const raw = stat === 'kPct' ? line.kPct : line.bbPct
   return raw == null ? null : raw / 100

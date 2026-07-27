@@ -16,8 +16,9 @@ export const MLB_WINDOW_KEYS: MlbWindowKey[] = ["L30", "L60", "L90", "L120"];
 // avgEv is mph. Fields are optional: players with no sv coverage keep the
 // MySQL-derived values only (estimated xwoba remains as fallback).
 
-export interface SavantWindowFields {
-  xwobaReal?: number | null; // real Statcast xwOBA (sv-sourced; `xwoba` mirrors it when covered)
+/** Fields served on BOTH season/window rows and split lines — exactly the
+ * toMetrics() set in api/supabase/savant.ts. */
+export interface SavantSplitFields {
   xba?: number | null;
   xslg?: number | null;
   barrelPct?: number | null; // 0-100
@@ -27,6 +28,13 @@ export interface SavantWindowFields {
   avgEv?: number | null; // mph
   woba?: number | null;
   babip?: number | null;
+}
+
+export interface SavantWindowFields extends SavantSplitFields {
+  xwobaReal?: number | null; // real Statcast xwOBA (sv-sourced; `xwoba` mirrors it when covered)
+  // Season/window-only fields. Split lines do NOT carry these — toSplitLine()
+  // serves only the shared metrics + pa/kPct/bbPct — so the split-line type
+  // must not promise them.
   // Present in sv_stat_cache and previously dropped by the loader mapper, which
   // forced several screens to invent substitutes (profiler/derive.ts:180-181
   // synthesised GB% and SwStr% while both sat unused in the warehouse).
@@ -43,8 +51,11 @@ export interface SavantWindowFields {
   games?: number | null;
 }
 
-/** Split-chip line (vsL/vsR/home/away) from sv_stat_cache split rows. */
-export interface SavantSplitLine extends SavantWindowFields {
+/** Split-chip line (vsL/vsR/home/away) from sv_stat_cache split rows.
+ * Extends SavantSplitFields only: split rows are served the shared metrics
+ * plus the four below — never the season/window-only fields. */
+export interface SavantSplitLine extends SavantSplitFields {
+  xwoba?: number | null; // split rows serve the real xwOBA under `xwoba`
   pa?: number | null;
   kPct?: number | null; // 0-100
   bbPct?: number | null; // 0-100

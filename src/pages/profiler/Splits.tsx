@@ -1,15 +1,32 @@
-// Profiler S3b — Splits: 2×3 grid of split cards. Big mono value, delta chip
-// vs baseline, mini heat strip across the 4 rolling windows (tooltips on squares).
+// Profiler S3b — Splits: grid of split cards from the real sv warehouse
+// (vs L/R, home/away, season level). Big mono xwOBA value, delta chip vs the
+// season baseline, sample size underneath. The old 4-window heat strip was
+// removed: sv splits are season-level only, so there is no split-by-window
+// data to display. NHL players have no split source and see a note instead.
 
 import { useMemo } from 'react'
 import { motion } from 'framer-motion'
 import { splitCards, type AnyPlayer } from '@/pages/profiler/derive'
-import { deltaTextClass, formatDelta, heatBg } from '@/lib/heat'
+import { formatDelta } from '@/lib/heat'
 
 const EASE = [0.16, 1, 0.3, 1] as [number, number, number, number]
 
 export default function Splits({ player }: { player: AnyPlayer }) {
   const cards = useMemo(() => splitCards(player), [player])
+
+  if (cards.length === 0) {
+    return (
+      <div className="rounded-lg border border-line bg-bg-1 px-6 py-10 text-center">
+        <p className="text-sm font-medium text-text-2">No splits for NHL players yet.</p>
+        <p className="mx-auto mt-1.5 max-w-md text-[13px] leading-relaxed text-text-3">
+          The split warehouse covers MLB only (vs L/R, home/away). An NHL split source isn&apos;t
+          connected.
+        </p>
+      </div>
+    )
+  }
+
+  const sampleUnit = player.kind === 'pitcher' ? 'TBF' : 'PA'
 
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -24,38 +41,23 @@ export default function Splits({ player }: { player: AnyPlayer }) {
           <p className="text-[13px] font-semibold text-text-2">{card.title}</p>
           <div className="mt-2 flex items-baseline gap-2.5">
             <span className="data-mono text-2xl font-bold text-text-1">{card.value}</span>
-            <span
-              className={`data-mono rounded-sm px-1.5 py-0.5 text-[11px] font-semibold ${
-                // polarity-adjust chip color: invert stats flip sign for "good"
-                (card.invert ? -card.deltaPct : card.deltaPct) >= 0
-                  ? 'bg-pos/15 text-[#FCA5A5]'
-                  : 'bg-neg/15 text-[#93C5FD]'
-              }`}
-              title={`${formatDelta(card.deltaPct)}% vs season baseline`}
-            >
-              {formatDelta(card.deltaPct)}%
-            </span>
+            {card.deltaPct !== null && (
+              <span
+                className={`data-mono rounded-sm px-1.5 py-0.5 text-[11px] font-semibold ${
+                  // polarity-adjust chip color: invert stats flip sign for "good"
+                  (card.invert ? -card.deltaPct : card.deltaPct) >= 0
+                    ? 'bg-pos/15 text-[#FCA5A5]'
+                    : 'bg-neg/15 text-[#93C5FD]'
+                }`}
+                title={`${formatDelta(card.deltaPct)}% vs season xwOBA baseline`}
+              >
+                {formatDelta(card.deltaPct)}%
+              </span>
+            )}
           </div>
-          {/* Mini heat strip — 4 rolling windows */}
-          <div className="mt-3 flex gap-1.5">
-            {card.windows.map((d, wi) => {
-              const polarity = card.invert ? -d : d
-              return (
-                <motion.span
-                  key={card.windowLabels[wi]}
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ duration: 0.3, delay: 0.15 + i * 0.06 + wi * 0.05 }}
-                  className="data-mono flex h-8 flex-1 items-center justify-center rounded-sm text-[10px] font-semibold"
-                  style={{ background: heatBg(polarity) }}
-                  title={`${card.windowLabels[wi]}: ${formatDelta(d)}% vs baseline`}
-                >
-                  <span className={deltaTextClass(polarity)}>{card.windowLabels[wi]}</span>
-                </motion.span>
-              )
-            })}
-          </div>
-          <p className="data-mono mt-2 text-[10px] text-text-3">vs season baseline · 4 windows</p>
+          <p className="data-mono mt-2 text-[10px] text-text-3">
+            {card.sample == null ? 'no coverage' : `n=${card.sample} ${sampleUnit}`} · season split · xwOBA
+          </p>
         </motion.div>
       ))}
     </div>
