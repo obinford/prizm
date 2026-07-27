@@ -15,7 +15,7 @@
 
 import { getDb } from "../queries/connection";
 import { gameLogs, players, props, slateGames } from "@db/schema";
-import { and, desc, eq } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { ipToOuts, startRun, finishRun } from "./common";
 
 function roundHalf(n: number): number {

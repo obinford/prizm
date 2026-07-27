@@ -75,7 +75,10 @@ export async function pgGet<T = unknown>(path: string): Promise<T> {
 /** Fluent query builder for a single table. */
 export class PgQuery<T = Record<string, unknown>> {
   private params: string[] = [];
-  constructor(private table: string) {}
+  private table: string;
+  constructor(table: string) {
+    this.table = table;
+  }
 
   select(cols: string[] | string = "*"): this {
     this.params.push(`select=${Array.isArray(cols) ? cols.join(",") : cols}`);

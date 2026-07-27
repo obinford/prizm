@@ -71,7 +71,6 @@ function StatBand() {
 
 function TiltCard({
   accent,
-  image,
   title,
   bullets,
   linkText,
@@ -79,7 +78,6 @@ function TiltCard({
   delay,
 }: {
   accent: string
-  image: string
   title: string
   bullets: string[]
   linkText: string
@@ -113,13 +111,34 @@ function TiltCard({
         className="group overflow-hidden rounded-xl border border-line bg-bg-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]"
       >
         <div className="h-[3px] w-full transition-shadow duration-300" style={{ background: accent }} />
-        <div className="overflow-hidden">
-          <img
-            src={image}
-            alt={`${title} preview`}
-            loading="lazy"
-            className="aspect-[16/10] w-full rounded-md object-cover transition-transform duration-500 group-hover:scale-[1.04]"
+        {/* Decorative refraction panel (no screenshot until real ones exist):
+            a light beam fanning into the card's accent spectrum. */}
+        <div className="relative aspect-[16/10] w-full overflow-hidden bg-bg-0" aria-hidden>
+          <div
+            className="absolute left-0 top-1/2 h-px w-[38%]"
+            style={{ background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.85))' }}
           />
+          <div
+            className="absolute left-[36%] top-[14%] h-[72%] w-px opacity-70"
+            style={{ background: 'linear-gradient(180deg, transparent, rgba(226,232,255,0.6), transparent)' }}
+          />
+          {[0, 1, 2, 3, 4].map((i) => (
+            <div
+              key={i}
+              className="absolute left-[36%] top-1/2 h-[2px] w-[62%] origin-left rounded-full transition-transform duration-500 group-hover:scale-x-105"
+              style={{
+                background: accent,
+                opacity: 0.28 + i * 0.14,
+                transform: `rotate(${-14 + i * 7}deg)`,
+                filter: 'blur(0.5px)',
+              }}
+            />
+          ))}
+          <div
+            className="absolute inset-0"
+            style={{ background: 'radial-gradient(55% 65% at 36% 50%, rgba(99,102,241,0.16), transparent 72%)' }}
+          />
+          <div className="noise-overlay pointer-events-none absolute inset-0" />
         </div>
         <div className="p-7">
           <h3 className="font-display text-2xl font-semibold text-text-1">{title}</h3>
@@ -160,7 +179,6 @@ function TwoSports() {
         <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
           <TiltCard
             accent="linear-gradient(90deg, #FBBF24, #FB923C)"
-            image="/shot-dashboard.png"
             title="MLB Dashboards"
             bullets={[
               'Starting pitcher split tables',
@@ -174,7 +192,6 @@ function TwoSports() {
           />
           <TiltCard
             accent="linear-gradient(90deg, #22D3EE, #2DD4BF)"
-            image="/shot-hockey.png"
             title="NHL Dashboards"
             bullets={[
               'Goalie SV% & GSAx splits',

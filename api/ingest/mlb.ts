@@ -14,7 +14,7 @@
 
 import { getDb } from "../queries/connection";
 import { gameLogs, players, seasonStats, teamStats, windowStats } from "@db/schema";
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { fetchJson, ipToOuts, round2, round3, slug, startRun, finishRun } from "./common";
 
 const API = "https://statsapi.mlb.com/api/v1";
@@ -285,7 +285,7 @@ function indexRosterStats(rosterRes: any): Map<number, any[]> {
   return m;
 }
 
-function pitOrBatSeason(role: "pitcher" | "batter", seasonStat: any, log: any[]) {
+function pitOrBatSeason(role: "pitcher" | "batter", _seasonStat: any, log: any[]) {
   // Aggregate from the real game logs (deterministic; matches windows).
   if (role === "batter") {
     const a = emptyBat();

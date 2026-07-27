@@ -1,10 +1,11 @@
 import { useMemo, useState } from 'react'
-import { AnimatePresence, motion } from 'framer-motion'
-import { Check, Search } from 'lucide-react'
+import { AnimatePresence } from 'framer-motion'
+import { Search } from 'lucide-react'
 import { BATTERS, PITCHERS } from '@/data/mlbPlayers'
 import { GOALIES, SKATERS } from '@/data/nhlPlayers'
 import { getPlan } from '@/lib/plan'
 import { toggleFollow } from '@/lib/follows'
+import { posLabel } from '@/pages/profiler/derive'
 import ProfilerDrawer from './profiler/Drawer'
 import ProfileCard, { type ProfileKind, type ProfileTarget } from './profiler/ProfileCard'
 import {
@@ -62,7 +63,7 @@ export default function Profiler() {
       sport,
       name: t.player.name,
       team: t.player.team,
-      role: t.kind === 'pitcher' ? 'SP' : t.kind === 'goalie' ? 'G' : t.kind === 'skater' ? t.player.pos : t.player.pos,
+      role: posLabel(t.player),
     })
   }
 

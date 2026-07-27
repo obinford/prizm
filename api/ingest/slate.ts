@@ -8,7 +8,7 @@
 import { getDb } from "../queries/connection";
 import { players, slateGames } from "@db/schema";
 import { and, eq } from "drizzle-orm";
-import { fetchJson, slug, startRun, finishRun, todayEt } from "./common";
+import { fetchJson, startRun, finishRun, todayEt } from "./common";
 
 const MLB_API = "https://statsapi.mlb.com/api/v1";
 const NHL_API = "https://api-web.nhle.com/v1";

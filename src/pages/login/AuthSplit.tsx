@@ -30,10 +30,12 @@ const BeamPulse = memo(function BeamPulse() {
 export default function AuthSplit({
   children,
   checklist,
+  footer,
   formWidth = 400,
 }: {
   children: ReactNode
   checklist?: string[]
+  footer?: ReactNode
   formWidth?: number
 }) {
   return (
@@ -105,6 +107,9 @@ export default function AuthSplit({
         <div className="flex flex-1 items-center justify-center px-6 py-12">
           <div className="w-full" style={{ maxWidth: formWidth }}>
             {children}
+            {footer && (
+              <div className="mt-8 text-center text-sm text-text-3">{footer}</div>
+            )}
           </div>
         </div>
       </div>

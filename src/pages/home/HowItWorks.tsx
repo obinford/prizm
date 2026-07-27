@@ -65,7 +65,7 @@ export default function HowItWorks() {
   )
 
   return (
-    <section ref={root} className="bg-bg-0 py-[120px] max-lg:py-[72px]">
+    <section ref={root} id="how-it-works" className="bg-bg-0 py-[120px] max-lg:py-[72px]">
       <div className="mx-auto max-w-[1200px] px-6">
         <h2 className="font-display text-center font-semibold text-text-1" style={{ fontSize: 'clamp(30px, 4vw, 40px)', lineHeight: 1.1, letterSpacing: '-0.02em' }}>
           Three steps to the full spectrum

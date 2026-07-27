@@ -1,36 +1,36 @@
 import { useCallback } from 'react'
 import Hero from '@/pages/home/Hero'
-import Showcase from '@/pages/home/Showcase'
 import HowItWorks from '@/pages/home/HowItWorks'
 import { useLenis } from '@/pages/home/useLenis'
 import { StatBand, TwoSports, ValueProps } from '@/pages/home/sections'
-import { ToolsBento, Testimonials, PricingPreview, FinalCTA } from '@/pages/home/sections2'
+import { PricingPreview, FinalCTA } from '@/pages/home/sections2'
 
 /**
- * Prizm landing page (home.md): S2 hero → S3 stat band → S4 two sports →
- * S5 pinned showcase → S6 value props → S7 tools bento → S8 how it works →
- * S9 testimonials → S10 pricing preview → S11 final CTA.
- * (S1 navbar + S12 footer live in the marketing Layout.)
+ * Prizm landing page: hero → stat band → two sports → value props →
+ * how it works → pricing preview → final CTA.
+ * (Navbar + footer live in the marketing Layout.)
+ *
+ * The screenshot-driven sections (pinned showcase, tools bento, testimonials)
+ * were removed — they depended on product screenshots and avatar photos that
+ * don't exist yet, and shipping broken or fabricated imagery is worse than
+ * shipping less page. They return when real assets exist.
  */
 export default function Home() {
   useLenis()
 
-  const scrollToShowcase = useCallback(() => {
-    document.getElementById('showcase')?.scrollIntoView({ behavior: 'smooth' })
+  const scrollToHowItWorks = useCallback(() => {
+    document.getElementById('how-it-works')?.scrollIntoView({ behavior: 'smooth' })
   }, [])
 
   return (
-    // overflow-x-clip: scroll-reveal animations (e.g. testimonials sliding in
-    // from ±40px) must not create persistent horizontal page pan on mobile.
+    // overflow-x-clip: scroll-reveal animations must not create persistent
+    // horizontal page pan on mobile.
     <div className="overflow-x-clip">
-      <Hero onWatchLight={scrollToShowcase} />
+      <Hero onWatchLight={scrollToHowItWorks} />
       <StatBand />
       <TwoSports />
-      <Showcase />
       <ValueProps />
-      <ToolsBento />
       <HowItWorks />
-      <Testimonials />
       <PricingPreview />
       <FinalCTA />
     </div>

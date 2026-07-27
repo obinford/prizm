@@ -51,7 +51,7 @@ export default function Login() {
 
   return (
     <AuthSplit
-      bullets={[
+      checklist={[
         'Split tables for every prop on tonight\u2019s board',
         'L5/L10/L20 hit rates with price alerts',
         'Ask Prizm — answers with receipts',
