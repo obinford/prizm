@@ -164,11 +164,18 @@ export function edgeScore(p: Pitcher): number {
 // ---------------------------------------------------------------------------
 
 /**
- * Seed abbreviations use the classic style (ARI); the warehouse and statsapi
- * use MLBAM style (AZ). One team differs — without this alias the Diamondbacks
- * would always miss their real bullpen row and silently show nothing.
+ * Local seed abbreviations use the classic style (ARI); the warehouse and
+ * statsapi use MLBAM style (AZ). One team differs — without this alias the
+ * Diamondbacks would miss their real rows and silently show nothing. Shared
+ * by the bullpen join and the Team Stats tab; do not string-match raw
+ * abbreviations anywhere else.
  */
-const BULLPEN_ABBR_ALIAS: Record<string, string> = { ARI: 'AZ' }
+export const TEAM_ABBR_TO_MLBAM: Record<string, string> = { ARI: 'AZ' }
+
+/** Local abbr → warehouse (MLBAM-style) abbr. Identity for the other 29. */
+export function toMlbamAbbr(abbr: string): string {
+  return TEAM_ABBR_TO_MLBAM[abbr] ?? abbr
+}
 
 export interface BullpenRow {
   team: MlbTeam
@@ -183,9 +190,7 @@ export interface BullpenRow {
 
 export function getBullpenRows(): BullpenRow[] {
   return MLB_TEAMS.map((team) => {
-    const live =
-      getLiveBullpen(team.abbr) ??
-      (BULLPEN_ABBR_ALIAS[team.abbr] ? getLiveBullpen(BULLPEN_ABBR_ALIAS[team.abbr]) : undefined)
+    const live = getLiveBullpen(team.abbr) ?? getLiveBullpen(toMlbamAbbr(team.abbr))
     return {
       team,
       era: live?.era ?? null,

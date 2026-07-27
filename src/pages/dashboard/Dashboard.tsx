@@ -15,6 +15,7 @@ import { MLB_TEAMS } from '@/data/mlbTeams'
 import PitcherTable from './PitcherTable'
 import LineupsTab from './LineupsTab'
 import BullpenTab from './BullpenTab'
+import TeamsTab from './TeamsTab'
 import TabPlaceholder from './TabPlaceholder'
 import GameCenter from '@/pages/GameCenter'
 import EdgeCenter from '@/pages/EdgeCenter'
@@ -45,7 +46,7 @@ const TABS: { key: TabKey; label: string }[] = [
 ]
 
 /** Tabs that use the shared filter bar + search. The rest are self-contained. */
-const FILTERED_TABS: TabKey[] = ['starters', 'bullpen', 'batters']
+const FILTERED_TABS: TabKey[] = ['starters', 'bullpen', 'batters', 'teams']
 
 /** Tabs offering the TABLE | HIT RATES view toggle. */
 const VIEW_MODE_TABS: TabKey[] = ['starters', 'batters']
@@ -191,13 +192,14 @@ export default function Dashboard() {
   const windows = windowSubset(values.window)
 
   // The Market chip shows batter props only while the Batters tab is active.
-  const filters = useMemo<FilterDef[]>(
-    () =>
-      tab === 'batters'
-        ? FILTERS.map((f) => (f.key === 'market' ? { ...f, options: BATTER_MARKET_OPTIONS } : f))
-        : FILTERS,
-    [tab],
-  )
+  // Team Stats has no applicable chips — it gets the search box only, and its
+  // own PA-split selector inside the tab.
+  const filters = useMemo<FilterDef[]>(() => {
+    if (tab === 'teams') return []
+    return tab === 'batters'
+      ? FILTERS.map((f) => (f.key === 'market' ? { ...f, options: BATTER_MARKET_OPTIONS } : f))
+      : FILTERS
+  }, [tab])
   const split = (values.split === 'vs-lhb' || values.split === 'vs-rhb' ? values.split : undefined) as
     | SplitKey
     | undefined
@@ -320,7 +322,9 @@ export default function Dashboard() {
         ) : (
           <div className="prizm-card space-y-3 p-4">
             {searchInput}
-            <FilterBar filters={filters} values={values} onChange={setValues} scope={SCOPE} />
+            {filters.length > 0 && (
+              <FilterBar filters={filters} values={values} onChange={setValues} scope={SCOPE} />
+            )}
           </div>
         )}
       </motion.div>
@@ -365,20 +369,7 @@ export default function Dashboard() {
           )}
 
           {tab === 'teams' && (
-            <TabPlaceholder
-              title="Team offense"
-              summary="One row per team with the offensive profile that drives every team- and game-level read: wRC+, wOBA, ISO, batted-ball mix, discipline and baserunning, across season and rolling windows."
-              blockers={[
-                'A team-level aggregation over sv_stat_cache — no such rollup exists yet',
-                'wRC+ and Contact% are not in sv_stat_cache and need a second source',
-                'Rolling team windows (L6 / L12 / L21 games) need date-bucketed aggregation',
-              ]}
-              available={[
-                'wOBA, BABIP, K%, BB%, HardHit%, Barrel% — already in sv_stat_cache',
-                'ISO, SLG, GB%, FB%, LD%, SwStr% — ingested and now mapped through api/loaders.ts',
-                'SB / SBA / SB% — available from the MLB Stats API ingest',
-              ]}
-            />
+            <TeamsTab loading={loading} query={query} filterSig={filterSig} onResetFilters={reset} />
           )}
 
           {tab === 'weather' && (
@@ -432,7 +423,9 @@ export default function Dashboard() {
               </div>
               <div className="space-y-3 pb-2">
                 {searchInput}
-                <FilterBar filters={filters} values={values} onChange={setValues} scope={SCOPE} />
+                {filters.length > 0 && (
+                  <FilterBar filters={filters} values={values} onChange={setValues} scope={SCOPE} />
+                )}
                 <button
                   type="button"
                   onClick={() => setSheetOpen(false)}

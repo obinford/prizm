@@ -95,6 +95,10 @@ export default function LiveDataProvider({ children }: { children: ReactNode }) 
   const slate = trpc.slate.today.useQuery(undefined, QUERY_OPTS)
   const props = trpc.props.list.useQuery(undefined, QUERY_OPTS)
   const bullpens = trpc.slate.bullpens.useQuery(undefined, QUERY_OPTS)
+  // Season-split team stats ride the same gate — Supabase-only, cached with
+  // everything else. The Team Stats tab re-queries per split; this warms the
+  // default view and lets a warehouse outage fail loudly, not silently.
+  const teamStats = trpc.teams.stats.useQuery({ split: 'season' }, QUERY_OPTS)
 
   const named = [
     ['players.pitchers', pitchers],
@@ -104,6 +108,7 @@ export default function LiveDataProvider({ children }: { children: ReactNode }) 
     ['slate.today', slate],
     ['props.list', props],
     ['slate.bullpens', bullpens],
+    ['teams.stats', teamStats],
   ] as const
   const queries = named.map(([, q]) => q)
 
