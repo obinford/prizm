@@ -1,6 +1,11 @@
-// Dashboard-local data helpers: slate starters, platoon adjustments, edge
-// scores and bullpen derivations. All deterministic so numbers are stable
-// across reloads (mirrors the src/data seed approach).
+// Dashboard-local data helpers: slate starters, real Statcast splits, edge
+// scores and bullpen derivations. Every number here comes from an ingested
+// source or is absent — nothing is synthesised.
+//
+// The deterministic hash/PRNG pair (hashStr / rand01) that used to live here
+// was deleted after splitFactor() went: those two functions existed only to
+// manufacture stable-looking fake numbers, and nothing referenced them any
+// more. If a value has no source, it dashes out. See the bullpen note below.
 
 import type { MlbWindowKey, Pitcher } from '@/data/mlbPlayers'
 import { getPitcher, MLB_WINDOW_KEYS } from '@/data/mlbPlayers'
@@ -10,29 +15,6 @@ import type { SlateGame } from '@/data/slate'
 import { MLB_SLATE } from '@/data/slate'
 import { getLiveBullpen } from '@/data/live'
 import { deltaPct } from '@/lib/heat'
-
-// ---------------------------------------------------------------------------
-// Deterministic hashing
-// ---------------------------------------------------------------------------
-
-export function hashStr(s: string): number {
-  let h = 2166136261
-  for (let i = 0; i < s.length; i++) {
-    h ^= s.charCodeAt(i)
-    h = Math.imul(h, 16777619)
-  }
-  return h >>> 0
-}
-
-/** Single deterministic pseudo-random in [0,1) from a numeric seed. */
-export function rand01(seed: number): number {
-  let a = seed >>> 0
-  a |= 0
-  a = (a + 0x6d2b79f5) | 0
-  let t = Math.imul(a ^ (a >>> 15), 1 | a)
-  t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
-  return ((t ^ (t >>> 14)) >>> 0) / 4294967296
-}
 
 // ---------------------------------------------------------------------------
 // Formatting

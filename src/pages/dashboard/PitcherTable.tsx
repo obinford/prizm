@@ -9,7 +9,7 @@
 // Adding a column is now an edit to src/lib/columns/mlbPitchers.ts. Adding a
 // sport is a new column list. Nothing here changes.
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { BookmarkPlus, Flame } from 'lucide-react'
 import type { MlbWindowKey } from '@/data/mlbPlayers'
 import { MLB_WINDOW_LABELS } from '@/data/mlbPlayers'
@@ -69,10 +69,20 @@ export default function PitcherTable({
   const [selected, setSelected] = useState<StarterEntry | null>(null)
   const [angleFor, setAngleFor] = useState<string | null>(null)
   const [toast, showToast] = useToast()
-  // Views chip row (Step 2.3). A chip overrides the Market filter's preset
-  // mapping; clearing the chip falls back to Market, then to all columns.
-  const [presetChip, setPresetChip] = useState<string | undefined>(undefined)
-  const activePresetKey = presetChip ?? (market ? MARKET_TO_PRESET[market] : undefined)
+  // Views chip row (Step 2.3). Three states, not two:
+  //   undefined → no chip choice, the Market filter's mapping decides
+  //   null      → explicitly cleared, overrides Market, all columns show
+  //   string    → explicit chip
+  // Collapsing null into undefined makes a Market-lit chip unclickable.
+  const [presetChip, setPresetChip] = useState<string | null | undefined>(undefined)
+  const marketPreset = market ? MARKET_TO_PRESET[market] : undefined
+  const activePresetKey = presetChip === undefined ? marketPreset : (presetChip ?? undefined)
+
+  // A new Market selection re-arms the mapping, so an old explicit clear does
+  // not silently disable the Market filter for the rest of the session.
+  useEffect(() => {
+    setPresetChip(undefined)
+  }, [market])
 
   const saveAngle = (entry: StarterEntry) => (angleId: string | null, newName?: string) => {
     addToAngle(angleId, newName, {

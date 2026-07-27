@@ -10,7 +10,7 @@
 // in the dropdown options, the Opp L/R column and the row drawer's opposing
 // starter block. Nothing was deleted without a home.
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { BookmarkPlus, X } from 'lucide-react'
 import DataTable from '@/components/DataTable'
@@ -255,13 +255,23 @@ export default function LineupsTab({ loading, values, query, onResetFilters }: L
   const [selected, setSelected] = useState<LineupRow | null>(null)
   const [angleFor, setAngleFor] = useState<string | null>(null)
   const [toast, showToast] = useToast()
-  // Views chip row (Step 2.3). A chip overrides the Market filter's preset
-  // mapping; clearing the chip falls back to Market, then to all columns.
-  const [presetChip, setPresetChip] = useState<string | undefined>(undefined)
+  // Views chip row (Step 2.3). Three states, not two:
+  //   undefined → no chip choice, the Market filter's mapping decides
+  //   null      → explicitly cleared, overrides Market, all columns show
+  //   string    → explicit chip
+  // Collapsing null into undefined makes a Market-lit chip unclickable.
+  const [presetChip, setPresetChip] = useState<string | null | undefined>(undefined)
 
   const windows = windowSubset(values.window)
   const market = values.market
-  const activePresetKey = presetChip ?? (market ? MARKET_TO_PRESET[market] : undefined)
+  const marketPreset = market ? MARKET_TO_PRESET[market] : undefined
+  const activePresetKey = presetChip === undefined ? marketPreset : (presetChip ?? undefined)
+
+  // A new Market selection re-arms the mapping, so an old explicit clear does
+  // not silently disable the Market filter for the rest of the session.
+  useEffect(() => {
+    setPresetChip(undefined)
+  }, [market])
 
   // 2.1b — one flat row list: every batter on both teams of every game.
   // oppHand is the OPPOSING probable starter's throws; null when the slate

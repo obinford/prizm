@@ -8,7 +8,13 @@ export interface PresetChipsProps {
   presets: ColumnPreset[]
   /** The currently resolved preset key (from a chip or the Market filter). */
   preset: string | undefined
-  onChange: (key: string | undefined) => void
+  /**
+   * `null` means "explicitly cleared" — distinct from `undefined` ("no chip
+   * choice, fall through to the Market filter"). Without that distinction a
+   * chip lit up by the Market filter cannot be switched off: the click would
+   * write `undefined`, which is what the state already held.
+   */
+  onChange: (key: string | null) => void
 }
 
 export default function PresetChips({ presets, preset, onChange }: PresetChipsProps) {
@@ -19,7 +25,7 @@ export default function PresetChips({ presets, preset, onChange }: PresetChipsPr
         <button
           key={p.key}
           type="button"
-          onClick={() => onChange(preset === p.key ? undefined : p.key)}
+          onClick={() => onChange(preset === p.key ? null : p.key)}
           aria-pressed={preset === p.key}
           title={p.description}
           className={`data-mono rounded-sm px-2 py-1 text-[11px] font-semibold uppercase tracking-wider transition-colors ${
