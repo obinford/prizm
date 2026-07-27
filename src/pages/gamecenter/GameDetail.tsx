@@ -8,11 +8,14 @@ import {
   getTeamBatters,
   MLB_WINDOW_KEYS,
   MLB_WINDOW_LABELS,
-  type Batter,
 } from '@/data/mlbPlayers'
 import { getSkaters, NHL_WINDOW_KEYS, NHL_WINDOW_LABELS, type Skater } from '@/data/nhlPlayers'
 import { PROPS, formatOdds } from '@/data/props'
 import SplitTable, { type SplitPlayer } from '@/components/SplitTable'
+import DataTable from '@/components/DataTable'
+import type { ColumnDef } from '@/lib/columns'
+import type { BatterRow } from '@/lib/columns/mlbBatters'
+import { BATTER_COLUMNS, batterWindowColumns } from '@/lib/columns/mlbBatters'
 import { getPitcher } from '@/data/mlbPlayers'
 import { getGoalie } from '@/data/nhlPlayers'
 import { deltaTextClass } from '@/lib/heat'
@@ -74,10 +77,36 @@ function AiRead({ reads }: { reads: string[] }) {
 // Splits matrix data builders
 // ---------------------------------------------------------------------------
 
-const MLB_COLS = [
-  { key: 'avg', label: 'AVG', format: (v: number) => v.toFixed(3) },
-  { key: 'slg', label: 'SLG', format: (v: number) => v.toFixed(3) },
-  { key: 'xbh', label: 'XBH/G', format: (v: number) => v.toFixed(2) },
+// The MLB matrix renders through the shared DataTable (Step 2.4): BATTER_COLUMNS
+// narrowed to AVG/SLG/XBH plus the four PA-window heat columns. The NHL matrix
+// stays on SplitTable — NHL skater columns have no ColumnDef list yet and
+// inventing one is out of scope, so SplitTable.tsx survives for that one
+// consumer.
+
+const MLB_MATRIX_STATS = ['avg', 'slg', 'xbh'] as const
+
+const MLB_MATRIX_COLUMNS: ColumnDef<BatterRow>[] = [
+  {
+    key: 'player',
+    label: 'Player',
+    value: (r) => r.batter.name,
+    source: 'MLB Stats API → players',
+    definition: 'Batter.',
+    sticky: true,
+    minWidth: 170,
+    render: (r) => (
+      <>
+        <span className="block text-sm font-semibold text-text-1">{r.batter.name}</span>
+        <span className="data-mono block text-[11px] text-text-3">
+          {r.batter.team} · {r.batter.pos}
+        </span>
+      </>
+    ),
+  },
+  ...BATTER_COLUMNS.filter((c) => (MLB_MATRIX_STATS as readonly string[]).includes(c.key)),
+  ...MLB_WINDOW_KEYS.flatMap((k) =>
+    batterWindowColumns(k, MLB_WINDOW_LABELS[k], MLB_MATRIX_STATS),
+  ),
 ]
 
 const NHL_COLS = [
@@ -85,24 +114,6 @@ const NHL_COLS = [
   { key: 'goals', label: 'G', format: (v: number) => v.toFixed(2) },
   { key: 'points', label: 'PTS', format: (v: number) => v.toFixed(2) },
 ]
-
-function batterToSplit(b: Batter): SplitPlayer {
-  return {
-    id: b.id,
-    name: b.name,
-    team: b.team,
-    pos: b.pos,
-    season: { avg: b.avg, slg: b.slg, xbh: b.xbh },
-    windows: Object.fromEntries(
-      MLB_WINDOW_KEYS.map((k) => [
-        k,
-        { avg: b.windows[k].avg, slg: b.windows[k].slg, xbh: b.windows[k].xbh },
-      ]),
-    ),
-    samples: Object.fromEntries(MLB_WINDOW_KEYS.map((k) => [k, b.windows[k].pa])),
-    sampleUnit: 'PA',
-  }
-}
 
 function skaterToSplit(s: Skater): SplitPlayer {
   return {
@@ -222,12 +233,15 @@ export default function GameDetail({
       : undefined
     : undefined
 
-  const matrixPlayers: SplitPlayer[] = useMemo(() => {
-    if (game.sport === 'mlb') {
-      return [...getTeamBatters(game.home).slice(0, 3), ...getTeamBatters(game.away).slice(0, 3)].map(
-        batterToSplit,
-      )
-    }
+  const mlbMatrixRows: BatterRow[] = useMemo(() => {
+    if (game.sport !== 'mlb') return []
+    return [...getTeamBatters(game.home).slice(0, 3), ...getTeamBatters(game.away).slice(0, 3)].map(
+      (batter) => ({ batter }),
+    )
+  }, [game])
+
+  const nhlMatrixPlayers: SplitPlayer[] = useMemo(() => {
+    if (game.sport !== 'nhl') return []
     return [
       ...getSkaters({ team: game.home }).slice(0, 3),
       ...getSkaters({ team: game.away }).slice(0, 3),
@@ -328,16 +342,26 @@ export default function GameDetail({
                 </span>
               ))}
             </div>
-            <SplitTable
-              players={matrixPlayers}
-              columns={game.sport === 'mlb' ? MLB_COLS : NHL_COLS}
-              windows={
-                game.sport === 'mlb'
-                  ? MLB_WINDOW_KEYS.map((k) => ({ key: k, label: MLB_WINDOW_LABELS[k] }))
-                  : NHL_WINDOW_KEYS.map((k) => ({ key: k, label: NHL_WINDOW_LABELS[k] }))
-              }
-              title={game.sport === 'mlb' ? 'Recent splits matrix — L30 to L120 PA' : 'Recent form matrix — 60 to 240 MIN'}
-            />
+            {game.sport === 'mlb' ? (
+              <DataTable<BatterRow>
+                columns={MLB_MATRIX_COLUMNS}
+                rows={mlbMatrixRows}
+                rowKey={(r) => r.batter.id}
+                emptyLabel="No batters available for this game"
+                provenance="Recent splits matrix — L30 to L120 PA"
+                mobileTitle={(r) => r.batter.name}
+                mobileSummary={(r) =>
+                  `${r.batter.team} · ${r.batter.pos} · AVG ${r.batter.avg.toFixed(3)}`
+                }
+              />
+            ) : (
+              <SplitTable
+                players={nhlMatrixPlayers}
+                columns={NHL_COLS}
+                windows={NHL_WINDOW_KEYS.map((k) => ({ key: k, label: NHL_WINDOW_LABELS[k] }))}
+                title="Recent form matrix — 60 to 240 MIN"
+              />
+            )}
           </motion.section>
 
           {/* S3c — Betting angles */}
