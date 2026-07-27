@@ -5,22 +5,22 @@ import { useMemo } from 'react'
 import { motion } from 'framer-motion'
 import { Zap } from 'lucide-react'
 import { formatOdds, getPlayerProps } from '@/data/props'
-import { initials, similarPlayers, type AnyPlayer } from '@/pages/profiler/derive'
+import type { AnyPlayer } from '@/pages/profiler/derive'
 import HitRateBars from '@/pages/angles/HitRateBars'
 
 const EASE = [0.16, 1, 0.3, 1] as [number, number, number, number]
 
 interface Props {
   player: AnyPlayer
+  /** Kept for the Drawer's player-switching API; unused while Similar profiles is removed. */
   onSelectPlayer: (id: string) => void
 }
 
-export default function ContextRail({ player, onSelectPlayer }: Props) {
+export default function ContextRail({ player }: Props) {
   const props = useMemo(
     () => getPlayerProps(player.id).sort((a, b) => (b.edgeScore ?? 0) - (a.edgeScore ?? 0)).slice(0, 4),
     [player],
   )
-  const similar = useMemo(() => similarPlayers(player), [player])
 
   return (
     <div className="space-y-4">
@@ -62,7 +62,9 @@ export default function ContextRail({ player, onSelectPlayer }: Props) {
         )}
       </motion.section>
 
-      {/* Similar profiles */}
+      {/* Similar profiles — removed. The old list picked players by array
+          offset (every 7th name in the pool), which is not similarity. It
+          returns when a real similarity model exists. */}
       <motion.section
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
@@ -71,33 +73,10 @@ export default function ContextRail({ player, onSelectPlayer }: Props) {
         aria-label="Similar profiles"
       >
         <h3 className="overline-caption text-text-3">Similar profiles</h3>
-        <div className="mt-3 space-y-1.5">
-          {similar.map((s) => (
-            <button
-              key={s.id}
-              type="button"
-              onClick={() => onSelectPlayer(s.id)}
-              className="flex w-full items-center gap-3 rounded-md border border-transparent px-2 py-2 text-left transition-colors hover:border-line hover:bg-bg-2"
-            >
-              <span
-                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold text-text-1"
-                style={{
-                  background:
-                    'linear-gradient(var(--bg-3), var(--bg-3)) padding-box, var(--gradient-spectrum) border-box',
-                  border: '1.5px solid transparent',
-                }}
-              >
-                {initials(s.name)}
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-[13px] font-medium text-text-1">{s.name}</span>
-                <span className="data-mono block text-[10px] text-text-3">
-                  {s.team} · {s.pos} · {s.sport.toUpperCase()}
-                </span>
-              </span>
-            </button>
-          ))}
-        </div>
+        <p className="mt-3 text-[13px] leading-relaxed text-text-3">
+          Removed. The previous picks were neighbouring entries in the player list, not players
+          with genuinely similar profiles.
+        </p>
       </motion.section>
     </div>
   )

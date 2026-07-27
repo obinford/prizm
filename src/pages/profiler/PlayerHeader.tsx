@@ -5,7 +5,6 @@ import { useEffect, useState } from 'react'
 import { animate, motion } from 'framer-motion'
 import { BookmarkPlus, Flame, Link2, UserPlus, UserCheck } from 'lucide-react'
 import {
-  formDelta,
   formScore,
   handLabel,
   headerStats,
@@ -14,7 +13,6 @@ import {
   type AnyPlayer,
 } from '@/pages/profiler/derive'
 import { isFollowed, onFollowsChange, toggleFollow } from '@/lib/follows'
-import { formatDelta } from '@/lib/heat'
 
 const EASE = [0.16, 1, 0.3, 1] as [number, number, number, number]
 
@@ -95,7 +93,6 @@ interface Props {
 
 export default function PlayerHeader({ player, onAddToAngle, onToast }: Props) {
   const score = formScore(player)
-  const delta = formDelta(player)
   const stats = headerStats(player)
   const [followed, setFollowed] = useState(() => isFollowed(player.id))
   useEffect(() => onFollowsChange(() => setFollowed(isFollowed(player.id))), [player.id])
@@ -121,12 +118,6 @@ export default function PlayerHeader({ player, onAddToAngle, onToast }: Props) {
       onToast(url)
     }
   }
-
-  const age = 21 + (player.id.length * 7) % 15
-  const contract =
-    player.sport === 'mlb'
-      ? `$${(4 + (player.id.length * 3) % 28).toFixed(1)}M / ${1 + (player.id.length % 6)}yr`
-      : `$${(3 + (player.id.length * 5) % 11).toFixed(1)}M x ${2 + (player.id.length % 6)}yr`
 
   return (
     <motion.section
@@ -165,9 +156,6 @@ export default function PlayerHeader({ player, onAddToAngle, onToast }: Props) {
                 {handLabel(player)}
               </span>
             </div>
-            <p className="data-mono mt-2 text-[11px] text-text-3">
-              Age {age} · {contract}
-            </p>
           </div>
         </div>
 
@@ -189,16 +177,6 @@ export default function PlayerHeader({ player, onAddToAngle, onToast }: Props) {
             <FormGauge score={score} />
             <div>
               <p className="overline-caption text-text-3">Form</p>
-              <div className="mt-1 flex items-center gap-1.5">
-                <span
-                  className={`data-mono rounded-sm px-1.5 py-0.5 text-[11px] font-semibold ${
-                    delta >= 0 ? 'bg-pos/15 text-[#FCA5A5]' : 'bg-neg/15 text-[#93C5FD]'
-                  }`}
-                >
-                  {formatDelta(delta, 0)}
-                </span>
-                <span className="text-[10px] text-text-3">vs 2w ago</span>
-              </div>
               {score >= 75 && (
                 <span className="mt-1.5 inline-flex items-center gap-1 text-[11px] font-semibold text-warning">
                   <Flame size={12} strokeWidth={1.5} /> Hot
