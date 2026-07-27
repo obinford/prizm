@@ -54,6 +54,25 @@ type ViewMode = 'table' | 'hitrates'
 
 
 
+// Market options are tab-shaped: pitcher props on Starters, batter props on
+// Batters. Bullpen has no market mapping and keeps the pitcher set harmlessly
+// (BullpenTab ignores values.market).
+const PITCHER_MARKET_OPTIONS = [
+  { value: 'ks', label: 'Strikeouts' },
+  { value: 'hits', label: 'Hits allowed' },
+  { value: 'er', label: 'Earned runs' },
+  { value: 'outs', label: 'Outs recorded' },
+]
+
+const BATTER_MARKET_OPTIONS = [
+  { value: 'hits', label: 'Hits' },
+  { value: 'tb', label: 'Total bases' },
+  { value: 'hr', label: 'Home runs' },
+  { value: '2b', label: 'Doubles' },
+  { value: 'ks', label: 'Strikeouts' },
+  { value: 'bb', label: 'Walks' },
+]
+
 const FILTERS: FilterDef[] = [
   {
     key: 'split',
@@ -82,12 +101,7 @@ const FILTERS: FilterDef[] = [
   {
     key: 'market',
     label: 'Market',
-    options: [
-      { value: 'ks', label: 'Strikeouts' },
-      { value: 'hits', label: 'Hits allowed' },
-      { value: 'er', label: 'Earned runs' },
-      { value: 'outs', label: 'Outs recorded' },
-    ],
+    options: PITCHER_MARKET_OPTIONS,
   },
   {
     key: 'window',
@@ -175,6 +189,15 @@ export default function Dashboard() {
   }, [values.handedness, values.venue, query])
 
   const windows = windowSubset(values.window)
+
+  // The Market chip shows batter props only while the Batters tab is active.
+  const filters = useMemo<FilterDef[]>(
+    () =>
+      tab === 'batters'
+        ? FILTERS.map((f) => (f.key === 'market' ? { ...f, options: BATTER_MARKET_OPTIONS } : f))
+        : FILTERS,
+    [tab],
+  )
   const split = (values.split === 'vs-lhb' || values.split === 'vs-rhb' ? values.split : undefined) as
     | SplitKey
     | undefined
@@ -297,7 +320,7 @@ export default function Dashboard() {
         ) : (
           <div className="prizm-card space-y-3 p-4">
             {searchInput}
-            <FilterBar filters={FILTERS} values={values} onChange={setValues} scope={SCOPE} />
+            <FilterBar filters={filters} values={values} onChange={setValues} scope={SCOPE} />
           </div>
         )}
       </motion.div>
@@ -409,7 +432,7 @@ export default function Dashboard() {
               </div>
               <div className="space-y-3 pb-2">
                 {searchInput}
-                <FilterBar filters={FILTERS} values={values} onChange={setValues} scope={SCOPE} />
+                <FilterBar filters={filters} values={values} onChange={setValues} scope={SCOPE} />
                 <button
                   type="button"
                   onClick={() => setSheetOpen(false)}
