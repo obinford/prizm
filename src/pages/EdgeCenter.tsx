@@ -4,7 +4,7 @@ import { animate, motion } from 'framer-motion'
 import { Bookmark, Crosshair, FileDown, Info, Share2, Sparkles } from 'lucide-react'
 import { format } from 'date-fns'
 import { TODAYS_SLATE } from '@/data/slate'
-import { PROPS, bestOverTag, consensusOver, devigProp, edgePp, edgeSurvivesCI, ciWilson, formatOdds, windowN, type PropLine } from '@/data/props'
+import { PROPS, bestOverTag, consensusOver, devigProp, edgePp, edgeQuality, edgeSurvivesCI, ciWilson, formatOdds, windowN, type PropLine } from '@/data/props'
 import { getPlan, onPlanChange } from '@/lib/plan'
 import { getFollowedIds, onFollowsChange } from '@/lib/follows'
 import { DeltaChip, EdgeGauge, SportChip, ToastViewport } from './gamecenter/kit'
@@ -125,8 +125,13 @@ function EdgeCard({
   const n = windowN('L10')
   const rate = prop.hitRates.L10
   const survives = edgeSurvivesCI(prop)
+  // Odds-quality gate: thin consensus or incoherent hold means the de-vigged
+  // price is not trustworthy. The CI mark is suppressed inside edgeSurvivesCI;
+  // here the reason replaces the interval tooltip so it is visible why.
+  const quality = edgeQuality(prop)
   const edgeTip = (() => {
     if (edge == null || !fair || rate == null) return undefined
+    if (!quality.ok) return quality.reason
     const [lo, hi] = ciWilson(rate, n)
     const loEdge = (lo - fair.over) * 100
     const hiEdge = (hi - fair.over) * 100
@@ -275,6 +280,13 @@ export default function EdgeCenter() {
   const visibleTop = topEdges().slice(0, 3)
   const visibleRest = isAllAccess ? topEdges().slice(3) : []
 
+  // Rows priced out of the edge by the odds-quality gate — a thin consensus
+  // or an incoherent hold would otherwise manufacture the biggest apparent
+  // edges from the worst data on the board.
+  const qualityExcluded = PROPS.filter(
+    (p) => p.oddsSource === 'sv_odds' && !edgeQuality(p).ok,
+  ).length
+
   const share = async () => {
     try {
       await navigator.clipboard.writeText(window.location.href)
@@ -350,6 +362,11 @@ export default function EdgeCenter() {
         <Info size={15} className="shrink-0 text-sp-indigo" />
         <p className="data-mono text-[12px] text-text-2">
           Edge Score blends rolling-window deltas, hit-rate form, and listed price. 80+ = rare air.
+          {qualityExcluded > 0 && (
+            <span className="text-text-3">
+              {' '}· {qualityExcluded} rows excluded — thin consensus or incoherent hold
+            </span>
+          )}
         </p>
       </motion.div>
 

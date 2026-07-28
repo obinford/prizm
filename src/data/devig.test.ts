@@ -11,6 +11,7 @@ import {
   devig,
   devigProp,
   edgePp,
+  edgeQuality,
   edgeSurvivesCI,
   impliedProb,
   windowN,
@@ -155,5 +156,45 @@ describe('edgePp / windowN', () => {
     expect(windowN('L5')).toBe(5)
     expect(windowN('L10')).toBe(10)
     expect(windowN('L20')).toBe(20)
+  })
+})
+
+describe('edgeQuality', () => {
+  const q = (consOver: number, consUnder: number, books: number | null) =>
+    prop({ consOver, consUnder, books, hitRates: { L5: 0.8, L10: 0.8, L20: 0.8 } })
+
+  it('accepts a normal market', () => {
+    expect(edgeQuality(q(-110, -110, 12)).ok).toBe(true)
+  })
+
+  it('rejects a thin consensus and says how thin', () => {
+    const r = edgeQuality(q(-110, -110, 2))
+    expect(r.ok).toBe(false)
+    expect(r.reason).toContain('2 books')
+  })
+
+  it('rejects an incoherent hold and names it', () => {
+    // -400/-400 implies 0.80 + 0.80 = 1.60 -> 60% hold.
+    const r = edgeQuality(q(-400, -400, 12))
+    expect(r.ok).toBe(false)
+    expect(r.reason).toContain('hold')
+  })
+
+  it('gates the CI survivor mark, not just the display', () => {
+    // Same 80% hit rate, same -110/-110 market (fair 0.500), same window.
+    // L20 is used because at L10 even 80% does not clear 0.500 — Wilson lower
+    // bound is 0.490. That near-miss is the sample-size lesson this whole
+    // feature exists to make visible, so it gets its own case below.
+    expect(edgeSurvivesCI(q(-110, -110, 12), 'L20')).toBe(true)
+    expect(edgeSurvivesCI(q(-110, -110, 2), 'L20')).toBe(false)
+  })
+
+  it('an 80% hit rate over 10 games does NOT clear an even-money fair price', () => {
+    // 8/10 feels like a lock and is not one: Wilson lo = 0.490 < 0.500.
+    expect(edgeSurvivesCI(q(-110, -110, 12), 'L10')).toBe(false)
+  })
+
+  it('leaves a row with no real odds as null, not false', () => {
+    expect(edgeSurvivesCI(prop({ oddsSource: 'flat' }))).toBe(null)
   })
 })

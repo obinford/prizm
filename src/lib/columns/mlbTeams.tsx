@@ -73,7 +73,7 @@ const STAT_COLS: StatCol[] = [
   // Production — PA-weighted
   { key: 'woba', label: 'wOBA', group: 'Production', format: fmt.rate, weight: 'PA', definition: 'Weighted on-base average — every offensive event scaled by its real run value. The best single summary of a team’s attack.', markets: ['Team totals', 'Moneyline'] },
   { key: 'xwoba', label: 'xwOBA', group: 'Production', format: fmt.rate, weight: 'PA', definition: 'Expected wOBA from contact quality, stripping out defence and luck. A gap vs wOBA usually means variance, not skill.', markets: ['Team totals'] },
-  { key: 'avg', label: 'AVG', group: 'Production', format: fmt.rate, weight: 'PA', definition: 'Hits per at-bat. Ignores walks, so it understates on-base skill.', markets: ['Team totals'] },
+  { key: 'avg', label: 'AVG', group: 'Production', format: fmt.rate, weight: 'PA', definition: 'Hits per at-bat, aggregated across the team’s qualified batters. Ignores walks, so it understates on-base skill.', markets: ['Team totals'] },
   { key: 'slg', label: 'SLG', group: 'Production', format: fmt.rate, weight: 'PA', definition: 'Total bases per at-bat — weights extra-base hits.', markets: ['Team totals'] },
   { key: 'iso', label: 'ISO', group: 'Production', format: fmt.rate, weight: 'PA', definition: 'Isolated power — slugging minus average. Extra-base damage only.', markets: ['Team totals'] },
   { key: 'babip', label: 'BABIP', group: 'Production', format: fmt.rate, weight: 'PA', definition: 'Batting average on balls in play. Far from .300 usually signals team-level luck that regresses.' },

@@ -229,6 +229,50 @@ export function ciWilson(rate: number, n: number, z = 1.96): [number, number] {
 }
 
 /**
+ * Minimum books behind a consensus price for the de-vig to mean anything.
+ * A "consensus" of two books is one book and its correlated twin.
+ */
+export const MIN_CONSENSUS_BOOKS = 4
+
+/**
+ * Maximum hold at which the two prices still describe a coherent market.
+ * Above this the pair is stale, one-sided, or a posting error — normalising
+ * it produces a "fair" probability that is not fair.
+ */
+export const MAX_CREDIBLE_HOLD = 0.15
+
+/**
+ * Whether a row's odds are good enough to price an edge against.
+ *
+ * MEASURED, not assumed. Across today's 1,772 two-sided sv_odds rows the hold
+ * runs 0.50% to 54.81%, mean 7.85%. The 23 rows above 15% hold average **2.7
+ * books**; every other row averages **12.1**. Extreme hold is not a market
+ * condition here, it is a symptom of thin book coverage.
+ *
+ * This matters more than it looks. A distorted fair price is exactly what
+ * makes a hit rate appear to beat the market, so without this gate the rows
+ * with the WORST data produce the BIGGEST apparent edges and sort straight to
+ * the top of the board. That is the classic failure mode of every +EV screen.
+ */
+export function edgeQuality(p: PropLine): { ok: boolean; reason?: string } {
+  const fair = devigProp(p)
+  if (!fair) return { ok: false, reason: 'No two-sided consensus price — cannot de-vig.' }
+  if (p.books != null && p.books < MIN_CONSENSUS_BOOKS) {
+    return {
+      ok: false,
+      reason: `Only ${p.books} book${p.books === 1 ? '' : 's'} behind this price — too thin to call a consensus (need ${MIN_CONSENSUS_BOOKS}).`,
+    }
+  }
+  if (fair.hold > MAX_CREDIBLE_HOLD) {
+    return {
+      ok: false,
+      reason: `${(fair.hold * 100).toFixed(1)}% hold — not a coherent two-sided market, so the de-vigged price is not trustworthy.`,
+    }
+  }
+  return { ok: true }
+}
+
+/**
  * True when the edge survives its own uncertainty — the LOWER bound of the
  * hit-rate interval still clears the fair price. This is the difference
  * between "this looks good" and "this is defensible", and it is the single
@@ -238,6 +282,7 @@ export function edgeSurvivesCI(p: PropLine, window: HitWindow = 'L10'): boolean 
   const fair = devigProp(p)
   const rate = p.hitRates[window]
   if (!fair || rate == null) return null
+  if (!edgeQuality(p).ok) return false
   const [lo] = ciWilson(rate, windowN(window))
   return lo > fair.over
 }
