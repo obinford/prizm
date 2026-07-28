@@ -75,9 +75,9 @@ export default function Register() {
   return (
     <AuthSplit
       checklist={[
-        'Split tables for every prop on tonight\u2019s board',
+        'Split tables for every prop on tonight’s board',
         'L5/L10/L20 hit rates with price alerts',
-        'Ask Prizm — answers with receipts',
+        'Weather-adjusted park factors',
       ]}
       footer={
         <>$0 today · Card required · Cancel anytime · 21+</>

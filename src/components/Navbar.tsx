@@ -10,7 +10,6 @@ const PRODUCT_LINKS = [
   { label: 'Profiler', to: '/profiler', desc: 'Player deep dives' },
   { label: 'GameCenter', to: '/gamecenter', desc: 'Matchup breakdowns' },
   { label: 'EdgeCenter', to: '/edgecenter', desc: 'Daily edge report' },
-  { label: 'Ask Prizm', to: '/ask', desc: 'AI answers with receipts' },
   { label: 'My Angles', to: '/angles', desc: 'Your saved research' },
 ]
 

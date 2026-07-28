@@ -26,7 +26,9 @@ import { saveAngle } from './utils'
 import { getAiReads, getGameAngles } from './content'
 
 // ---------------------------------------------------------------------------
-// AI read paragraph — word-stagger reveal, regenerate cycles variants
+// Matchup read paragraph — word-stagger reveal. The read is a deterministic
+// template over live warehouse data (generatedRead in content.ts) — no model
+// behind it, so the label must not say "AI".
 // ---------------------------------------------------------------------------
 
 function AiRead({ reads }: { reads: string[] }) {
@@ -37,7 +39,7 @@ function AiRead({ reads }: { reads: string[] }) {
     <div className="mt-5 rounded-lg border border-line bg-bg-2/60 p-4">
       <div className="mb-2 flex items-center justify-between gap-3">
         <span className="overline-caption flex items-center gap-1.5 text-sp-indigo">
-          <Sparkles size={13} /> Prizm AI read
+          <Sparkles size={13} /> Prizm read
         </span>
         {reads.length > 1 && (
           <button

@@ -460,7 +460,7 @@ export default function EdgeCenter() {
             </h3>
             <p className="mt-2 text-sm leading-relaxed text-text-2">
               Ranks 4–{topEdges().length}, the worth-a-look list, and tomorrow&apos;s early read —
-              plus unlimited Ask Prizm and GameCenter breakdowns.
+              plus My Angles sharing and GameCenter breakdowns.
             </p>
             <Link
               to="/pricing"

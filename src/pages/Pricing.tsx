@@ -263,7 +263,7 @@ export default function Pricing() {
             Your first week is on <span className="text-spectrum">us.</span>
           </h2>
           <p className="relative mt-3 leading-[1.65] text-text-2">
-            Seven days of split tables, hit rates, and Ask Prizm — free.
+            Seven days of split tables, hit rates, and the Profiler — free.
           </p>
           <div className="relative mt-7">
             <Link

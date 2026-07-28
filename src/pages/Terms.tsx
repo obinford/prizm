@@ -101,7 +101,7 @@ const SECTIONS: LegalSection[] = [
       <>
         <p>
           Prizm is a research tool. Nothing on the Service constitutes financial, legal, or wagering
-          advice, and no outcome is ever guaranteed. Price alerts, edge scores, and AI answers are
+          advice, and no outcome is ever guaranteed. Price alerts, edge scores, and matchup reads are
           informational signals only — the final decision, and the risk, is always yours.
         </p>
         <p>

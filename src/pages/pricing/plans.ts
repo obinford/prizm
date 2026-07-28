@@ -30,12 +30,12 @@ export const PLANS: Plan[] = [
   {
     id: 'allaccess',
     name: 'All Access',
-    tagline: 'Every instrument — splits, edges, angles, and Ask Prizm.',
+    tagline: 'Every instrument — splits, edges, angles, and the Profiler.',
     monthly: 24.99,
     annual: 19.99,
     features: [
       'Everything in Dashboards',
-      'Ask Prizm — unlimited',
+      'Hit Rates — full slate',
       'EdgeCenter full board',
       'My Angles + sharing',
     ],
@@ -60,5 +60,5 @@ export const COMPARISON_ROWS: ComparisonRow[] = [
   { label: 'Saved views & filters', dashboards: true, allaccess: true },
   { label: 'My Angles + sharing', dashboards: false, allaccess: true },
   { label: 'EdgeCenter full board', dashboards: false, allaccess: true },
-  { label: 'Ask Prizm', dashboards: false, allaccess: true, note: 'unlimited' },
+  { label: 'Hit Rates — full slate, line + edge filters', dashboards: false, allaccess: true },
 ]

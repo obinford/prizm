@@ -185,7 +185,7 @@ export default function NewAngleModal({ onClose, onCreated }: Props) {
                 </option>
               ))}
             </select>
-            <p className="mt-1 text-[11px] text-text-3">Pick from recent tables, props and AI answers.</p>
+            <p className="mt-1 text-[11px] text-text-3">Pick from recent tables and prop hit rates.</p>
           </motion.div>
 
           <motion.div {...fieldMotion(5)} className="flex gap-3 pt-1">

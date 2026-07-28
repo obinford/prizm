@@ -182,7 +182,7 @@ export default function Hero({ onWatchLight }: { onWatchLight: () => void }) {
 
           <p className="hero-sub mt-6 max-w-[520px] text-lg leading-[1.65] text-text-2">
             Prizm refracts raw MLB &amp; NHL data into the full spectrum of betting angles —
-            rolling splits, hit rates, and AI matchup reads. One dashboard. Zero guesswork.
+            rolling splits, hit rates, and matchup reads. One dashboard. Zero guesswork.
           </p>
 
           <div className="mt-8 flex flex-wrap items-center gap-4">
@@ -206,8 +206,13 @@ export default function Hero({ onWatchLight }: { onWatchLight: () => void }) {
           </div>
 
           <p className="hero-proof data-mono mt-8 text-xs leading-relaxed text-text-3">
-            2,400+ player profiles · 8 research tools · 30–240 rolling windows · No book affiliation
+            1,300+ player profiles · 13 prop markets · 30–240 rolling windows · No book affiliation
           </p>
+          {/* Counts measured against the warehouse 2026-07-28 (see StatBand in
+              sections.tsx for the query). The previous band said "2,400+ profiles"
+              (actual: 1,324) and "8 research tools" — a count with no clean
+              enumeration (5 nav destinations, 7 dashboard tabs), so it was
+              replaced with the verifiable prop-market count. */}
         </div>
 
         {/* Right column: prism visual */}

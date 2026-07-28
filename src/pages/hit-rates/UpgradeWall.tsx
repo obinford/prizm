@@ -100,8 +100,8 @@ export default function UpgradeWall({ onUpgraded }: { onUpgraded: () => void }) 
               <div className="mt-4 rounded-md border border-line bg-bg-2 px-4 py-3">
                 <div className="flex items-baseline justify-between">
                   <span className="data-mono text-2xl font-bold text-text-1">
-                    {annual ? '$29' : '$39'}
-                    <span className="text-sm font-medium text-text-3">/mo</span>
+                    {annual ? '$19.99' : '$24.99'}
+                    <span className="text-sm font-medium text-text-3">/mo{annual ? ' · billed annually' : ''}</span>
                   </span>
                   {annual && (
                     <span className="rounded-sm bg-sp-indigo/20 px-1.5 py-0.5 text-[10px] font-semibold text-sp-indigo">
@@ -110,7 +110,7 @@ export default function UpgradeWall({ onUpgraded }: { onUpgraded: () => void }) 
                   )}
                 </div>
                 <ul className="mt-3 space-y-1.5 text-[13px] text-text-2">
-                  {['Full hit-rate slate + price alerts', 'Ask Prizm unlimited', 'EdgeCenter full board'].map((f) => (
+                  {['Full hit-rate slate + price alerts', 'EdgeCenter full board', 'My Angles + sharing'].map((f) => (
                     <li key={f} className="flex items-center gap-2">
                       <Check size={13} className="text-success" /> {f}
                     </li>

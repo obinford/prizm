@@ -31,9 +31,19 @@ function Counter({ target, suffix = '' }: { target: number; suffix?: string }) {
 }
 
 function StatBand() {
+  // MEASURED, not invented. Player count: warehouse query run 2026-07-28 —
+  //   select count(distinct mlbam_id) from sv_stat_cache  →  1324
+  // (608 batters + 759 pitchers, 43 as both). Rendered as a 1,300+ floor so
+  // it stays true as rosters grow; re-run the query to re-check. NHL players
+  // hydrate from MySQL (statsapi), not this warehouse, so they are not in
+  // this count — 1,300+ is conservative. Marketing pages render outside
+  // LiveDataProvider, so a live count would need a new public query; until
+  // that exists the floor + this comment is the honest mechanism.
+  // Prop markets: sv_odds carries 13 real priced prop types (verified against
+  // the warehouse 2026-07-28). XBH is Prizm-derived and unpriced — not counted.
   const stats: { value: React.ReactNode; label: string }[] = [
-    { value: <Counter target={2400} suffix="+" />, label: 'Player profiles' },
-    { value: <Counter target={18} />, label: 'Stat markets tracked' },
+    { value: <Counter target={1300} suffix="+" />, label: 'Player profiles' },
+    { value: <Counter target={13} />, label: 'Prop markets priced' },
     {
       value: (
         <span className="data-mono text-4xl font-bold text-text-1 md:text-5xl">30–240</span>

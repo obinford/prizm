@@ -7,7 +7,6 @@ const PRODUCT_LINKS = [
   { label: 'Profiler', to: '/profiler' },
   { label: 'GameCenter', to: '/gamecenter' },
   { label: 'EdgeCenter', to: '/edgecenter' },
-  { label: 'Ask Prizm', to: '/ask' },
   { label: 'My Angles', to: '/angles' },
 ]
 
@@ -32,7 +31,7 @@ export default function Footer() {
               </span>
             </Link>
             <p className="mt-4 max-w-sm text-sm leading-relaxed text-text-2">
-              See every side of the bet. Rolling splits, hit rates, and AI matchup reads for MLB
+              See every side of the bet. Rolling splits, hit rates, and matchup reads for MLB
               &amp; NHL prop research.
             </p>
             <div className="mt-6 h-px w-40 opacity-60" style={{ background: 'var(--gradient-spectrum)' }} />

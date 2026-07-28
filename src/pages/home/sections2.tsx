@@ -24,7 +24,7 @@ const PLANS = [
     name: 'All Access',
     monthly: 24.99,
     annual: 19.99,
-    features: ['Everything in Dashboards', 'Ask Prizm — unlimited', 'EdgeCenter full board', 'My Angles + sharing'],
+    features: ['Everything in Dashboards', 'Hit Rates — full slate', 'EdgeCenter full board', 'My Angles + sharing'],
     spectrum: true,
   },
 ]

@@ -44,7 +44,7 @@ const FAQS: FaqEntry[] = [
   {
     category: 'Plans & billing',
     q: "What's the difference between plans?",
-    a: 'Dashboards Only ($12.99/mo, $149.99/yr) is the split tables for both sports. All Access ($24.99/mo, $249.99/yr) adds Hit Rates, Profiler, GameCenter, EdgeCenter, Ask Prizm, and My Angles.',
+    a: 'Dashboards Only ($12.99/mo, $149.99/yr) is the split tables for both sports. All Access ($24.99/mo, $249.99/yr) adds Hit Rates, Profiler, GameCenter, EdgeCenter, and My Angles.',
   },
   {
     category: 'Plans & billing',
@@ -75,11 +75,6 @@ const FAQS: FaqEntry[] = [
     category: 'Tools',
     q: 'What is a price alert in Hit Rates?',
     a: "When a prop's hit rate implies value versus the listed price, the row gets a Zap flag. It's a research signal, not a recommendation.",
-  },
-  {
-    category: 'Tools',
-    q: 'What is Ask Prizm?',
-    a: 'A natural-language assistant over our dataset. Ask "Which starters get shelled by lefties at home?" and get an answer with the supporting table. Unlimited on All Access.',
   },
   {
     category: 'Tools',
@@ -290,7 +285,7 @@ export default function Faq() {
             Still guessing?
           </h2>
           <p className="mt-3 max-w-md leading-[1.65] text-text-2">
-            Ask Prizm inside the app, or email{' '}
+            Questions the FAQ doesn&apos;t cover? Email{' '}
             <a href="mailto:support@prizm.bet" className="text-sp-indigo hover:brightness-125">
               support@prizm.bet
             </a>

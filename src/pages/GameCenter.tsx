@@ -104,7 +104,7 @@ export default function GameCenter() {
                 GameCenter is All Access
               </h3>
               <p className="mt-2 text-sm leading-relaxed text-text-2">
-                Per-game AI reads, splits matrices, and betting angles for every matchup on the
+                Per-game matchup reads, splits matrices, and betting angles for every matchup on the
                 slate. Upgrade to unlock the full breakdown.
               </p>
               <Link
