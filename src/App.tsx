@@ -13,6 +13,7 @@ import HockeyDashboard from '@/pages/HockeyDashboard'
 import Profiler from '@/pages/Profiler'
 import Ask from '@/pages/Ask'
 import Angles from '@/pages/Angles'
+import Glossary from '@/pages/Glossary'
 
 /** Placeholder page — used only for the 404 catch-all. */
 function PageStub({ name, note }: { name: string; note?: string }) {
@@ -61,6 +62,7 @@ export default function App() {
         <Route path="profiler" element={<Profiler />} />
         <Route path="ask" element={<Ask />} />
         <Route path="angles" element={<Angles />} />
+        <Route path="glossary" element={<Glossary />} />
       </Route>
     </Routes>
   )

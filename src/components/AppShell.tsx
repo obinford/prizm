@@ -3,7 +3,7 @@ import { canStepSlateDay, SLATE_DAY_LABEL, stepSlateDay, useSlateDay } from '@/l
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router'
 import { motion, AnimatePresence } from 'framer-motion'
 import { format } from 'date-fns'
-import { BarChart3, Bookmark, Bell, ChevronLeft, ChevronRight, Database, LayoutDashboard, Loader2, LogOut, Menu, Moon, Search, Sparkles, Sun, UserRound, X, Zap } from 'lucide-react'
+import { BarChart3, Bookmark, Bell, BookOpen, ChevronLeft, ChevronRight, Database, LayoutDashboard, Loader2, LogOut, Menu, Moon, Search, Sparkles, Sun, UserRound, X, Zap } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { LOGIN_PATH } from '@/const'
 import { trpc } from '@/providers/trpc'
@@ -15,6 +15,7 @@ const RESEARCH_NAV = [
   { label: 'Dashboards — MLB', to: '/dashboard', icon: LayoutDashboard },
   { label: 'Hockey — NHL', to: '/dashboard/hockey', icon: Zap },
   { label: 'Player Profiler', to: '/profiler', icon: UserRound },
+  { label: 'Glossary', to: '/glossary', icon: BookOpen },
 ]
 
 const AI_NAV = [
@@ -31,6 +32,7 @@ const PAGE_TITLES: [RegExp, string][] = [
   [/^\/edgecenter/, 'EdgeCenter'],
   [/^\/ask/, 'Ask Prizm'],
   [/^\/angles/, 'My Angles'],
+  [/^\/glossary/, 'Glossary'],
 ]
 
 function pageTitle(pathname: string): string {
