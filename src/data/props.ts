@@ -6,6 +6,9 @@
 // MLB odds are REAL aggregated book lines (sv_odds); NHL rows stay flat -115
 // (no odds feed). Informational only — Prizm is not a sportsbook.
 
+import { getGame } from '@/data/slate'
+import { getPitcher } from '@/data/mlbPlayers'
+
 export type PropMarket =
   | 'XBH'
   | 'Total Bases'
@@ -27,7 +30,25 @@ export type PropMarket =
   | 'Stolen Bases'
   | 'Hits + Runs + RBIs'
 
-export const MLB_MARKETS: PropMarket[] = ['XBH', 'Total Bases', 'Strikeouts', 'Hits']
+// All 13 sv_odds prop types plus XBH. sv_odds serves every one of these, so
+// the scanner exposes every one of them — capping at four markets hid rows
+// that were already being fetched and priced.
+export const MLB_MARKETS: PropMarket[] = [
+  'XBH',
+  'Total Bases',
+  'Strikeouts',
+  'Hits',
+  'Hits Allowed',
+  'Outs',
+  'Home Runs',
+  'Singles',
+  'Doubles',
+  'RBIs',
+  'Runs',
+  'Walks',
+  'Stolen Bases',
+  'Hits + Runs + RBIs',
+]
 export const NHL_MARKETS: PropMarket[] = ['SOG', 'Saves', 'Goals', 'Points']
 export const ALL_MARKETS: PropMarket[] = [...MLB_MARKETS, ...NHL_MARKETS]
 
@@ -305,4 +326,69 @@ export function bestOverTag(p: PropLine): string | null {
 export function bestUnderTag(p: PropLine): string | null {
   if (!hasRealOdds(p) || !p.underBook) return null
   return `${formatOdds(p.underPrice)} ${p.underBook}`
+}
+
+// ---------------------------------------------------------------------------
+// Side-aware helpers (over / under)
+// ---------------------------------------------------------------------------
+
+export type PropSide = 'over' | 'under'
+
+/**
+ * Hit rate for ONE side of a prop in a window.
+ *
+ * Over rates come from the server (hitRates). Under rates are derived here:
+ *
+ * - When recentValues is present, the under rate is computed from the SAME
+ *   per-game values and the SAME slice/denominator as the server's over rate
+ *   (propsRouter buildMlbProp: `v > line` over values.slice(0, n)). A push is
+ *   neither an over nor an under hit, so `v < line` is exact — it does not
+ *   assume over + under = 1.
+ * - When recentValues is absent (NHL flat rows), the only honest option is
+ *   the complement 1 − over, which treats pushes as under misses. Exact for
+ *   half-lines, approximate for integer lines — flagged `approx` so the UI
+ *   can say so rather than present it as measured.
+ */
+export function sideRate(
+  p: PropLine,
+  window: HitWindow,
+  side: PropSide,
+): { rate: number; approx: boolean } {
+  if (side === 'over') return { rate: p.hitRates[window], approx: false }
+  const vals = p.recentValues
+  if (vals && vals.length > 0) {
+    const slice = vals.slice(0, windowN(window))
+    if (slice.length > 0) {
+      return { rate: slice.filter((v) => v < p.line).length / slice.length, approx: false }
+    }
+  }
+  return { rate: 1 - p.hitRates[window], approx: true }
+}
+
+/**
+ * Edge in percentage points for one side: observed side hit rate minus the
+ * DE-VIGGED market probability for that side. Same caveat as edgePp() — a
+ * historical hit rate against a fair price, not a model probability; never
+ * render it without its sample size nearby.
+ */
+export function sideEdgePp(p: PropLine, window: HitWindow, side: PropSide): number | null {
+  const fair = devigProp(p)
+  if (!fair) return null
+  const { rate } = sideRate(p, window, side)
+  return (rate - (side === 'over' ? fair.over : fair.under)) * 100
+}
+
+/**
+ * Hand of the opposing probable pitcher ('L' | 'R'), or null when the game or
+ * the probable is unknown. Side detection uses the opponent tag written by
+ * propsRouter ("vs X" = the prop player's team is home, "@" = away) rather
+ * than matching team abbreviations, which differ between feeds.
+ */
+export function opposingPitcherHand(p: PropLine): 'L' | 'R' | null {
+  if (p.sport !== 'mlb' || !p.gameId) return null
+  const game = getGame(p.gameId)
+  if (!game) return null
+  const oppId = p.opponent.startsWith('vs') ? game.awayProbableId : game.homeProbableId
+  if (!oppId) return null
+  return getPitcher(oppId)?.throws ?? null
 }

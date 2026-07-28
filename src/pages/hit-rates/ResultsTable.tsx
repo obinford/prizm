@@ -1,16 +1,20 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router'
 import { AnimatePresence, motion } from 'framer-motion'
-import { ArrowDown, ArrowUp, Bookmark, Check, X, Zap } from 'lucide-react'
-import type { HitWindow, PropLine } from '@/data/props'
+import { ArrowDown, ArrowUp, Bookmark, Check, Columns3, X, Zap } from 'lucide-react'
+import type { HitWindow, PropLine, PropSide } from '@/data/props'
 import {
   HIT_WINDOWS,
   bestOverTag,
   bestUnderTag,
   consensusOver,
   consensusUnder,
+  devigProp,
   formatOdds,
   hasRealOdds,
+  opposingPitcherHand,
+  sideEdgePp,
+  sideRate,
 } from '@/data/props'
 import { addAngle, propSnapshot } from '@/pages/angles/store'
 import { MARKET_ICONS } from '@/pages/hit-rates/ScannerControls'
@@ -31,18 +35,24 @@ function HitBar({
   primary,
   rowIndex,
   resetKey,
+  approx = false,
 }: {
   rate: number
   windowKey: HitWindow
   primary: boolean
   rowIndex: number
   resetKey: string
+  /** true when the rate is 1 − over (no per-game log) — pushes not excluded */
+  approx?: boolean
 }) {
   const pct = Math.round(rate * 100)
   const hits = Math.round(rate * WINDOW_N[windowKey])
   const hot = rate >= 0.7
   return (
-    <div className={primary ? '' : 'opacity-75'}>
+    <div
+      className={primary ? '' : 'opacity-75'}
+      title={approx ? 'Complement of the over rate — pushes not excluded (no per-game log for this row)' : undefined}
+    >
       <div className="flex items-baseline justify-between gap-2">
         <span
           className={`data-mono ${primary ? 'text-[13px] font-bold' : 'text-[11px] font-medium'} ${
@@ -74,18 +84,32 @@ function HitBar({
 }
 
 /**
- * Real-odds price block (design.md §data-mono): consensus price primary,
- * best-book tag secondary. NHL rows have no odds feed — flat price + note.
+ * Real-odds price block (design.md §data-mono): ACTIVE side's consensus price
+ * first, the other side second; best-book tag for the active side. NHL rows
+ * have no odds feed — flat price + note.
  */
-function PriceBlock({ prop, compact }: { prop: PropLine; compact?: boolean }) {
+function PriceBlock({ prop, side, compact }: { prop: PropLine; side: PropSide; compact?: boolean }) {
   const real = hasRealOdds(prop)
-  const best = bestOverTag(prop)
+  const best = side === 'over' ? bestOverTag(prop) : bestUnderTag(prop)
+  const overTxt = formatOdds(consensusOver(prop))
+  const underTxt = formatOdds(consensusUnder(prop))
   return (
     <span className="block">
       <span className={`data-mono block text-text-2 ${compact ? 'text-[11px]' : 'text-[11px]'}`}>
-        {formatOdds(consensusOver(prop))}
-        <span className="text-text-3"> / u </span>
-        {formatOdds(consensusUnder(prop))}
+        {side === 'over' ? (
+          <>
+            {overTxt}
+            <span className="text-text-3"> / u </span>
+            {underTxt}
+          </>
+        ) : (
+          <>
+            <span className="text-text-3">u </span>
+            {underTxt}
+            <span className="text-text-3"> / o </span>
+            {overTxt}
+          </>
+        )}
         {real && prop.books != null && (
           <span className="ml-1.5 text-[10px] text-text-3">{prop.books} books</span>
         )}
@@ -129,22 +153,87 @@ function ValueBadge({ rowIndex }: { rowIndex: number }) {
   )
 }
 
+/**
+ * De-vigged consensus probability for the active side, labelled as de-vigged
+ * (the raw implied number includes the hold and overstates the true price).
+ * Em-dash when a side is missing — a one-sided de-vig is not a de-vig.
+ */
+function FairCell({ prop, side }: { prop: PropLine; side: PropSide }) {
+  const fair = devigProp(prop)
+  if (!fair) {
+    return (
+      <span className="data-mono text-text-3" title="No two-sided consensus price — cannot de-vig">
+        —
+      </span>
+    )
+  }
+  const v = side === 'over' ? fair.over : fair.under
+  return (
+    <span
+      className="data-mono text-[12px] font-semibold text-text-1"
+      title={`De-vigged ${side} probability (multiplicative method) — ${(fair.hold * 100).toFixed(1)}% hold removed`}
+    >
+      {Math.round(v * 100)}%
+    </span>
+  )
+}
+
+/**
+ * Numeric side edge (hit rate − de-vigged price, percentage points) on the
+ * selected edge window, plus the server-fixed VALUE badge. The badge's
+ * threshold is computed server-side (blended windows vs raw implied) and does
+ * not move with the edge-window selector — the number beside it does.
+ */
+function EdgeCell({
+  prop,
+  side,
+  edgeWindow,
+  rowIndex,
+}: {
+  prop: PropLine
+  side: PropSide
+  edgeWindow: HitWindow
+  rowIndex: number
+}) {
+  const edge = sideEdgePp(prop, edgeWindow, side)
+  return (
+    <div className="flex flex-col items-center gap-1">
+      {edge != null ? (
+        <span
+          className={`data-mono text-[12px] font-bold ${edge >= 0 ? 'text-[#FCA5A5]' : 'text-[#93C5FD]'}`}
+          title={`${edgeWindow} ${side} hit rate minus the de-vigged ${side} price — a historical rate vs a fair price, not a model probability`}
+        >
+          {edge >= 0 ? '+' : ''}
+          {edge.toFixed(1)}pp
+        </span>
+      ) : (
+        <span className="data-mono text-text-3" title="No real two-sided odds — no edge to compute">
+          —
+        </span>
+      )}
+      {prop.priceAlert && <ValueBadge rowIndex={rowIndex} />}
+    </div>
+  )
+}
+
 // ---------------------------------------------------------------------------
 // Drawer
 // ---------------------------------------------------------------------------
 
-function PropDrawer({ prop, onClose }: { prop: PropLine; onClose: () => void }) {
+function PropDrawer({ prop, side, onClose }: { prop: PropLine; side: PropSide; onClose: () => void }) {
   const [added, setAdded] = useState(false)
   // Real per-game outcomes from game_logs (propsRouter.recentValues), compared
-  // against the actual line. Previously both of these were hash streams: the
-  // hit/miss strip could not reconcile with the L10% shown beside it, and the
-  // "line history" sparkline had no source at all (sv_odds keeps one row per
-  // player/prop/date). The sparkline is gone until line history is retained.
+  // against the actual line on the ACTIVE side (a push is neither a hit nor a
+  // miss — `v < line` for under, `v > line` for over). Previously both of
+  // these were hash streams: the hit/miss strip could not reconcile with the
+  // L10% shown beside it, and the "line history" sparkline had no source at
+  // all (sv_odds keeps one row per player/prop/date). The sparkline is gone
+  // until line history is retained.
   const log = useMemo(() => {
     const vals = prop.recentValues
     if (!vals || vals.length === 0) return null
-    return vals.slice(0, 10).map((v) => v > prop.line)
-  }, [prop])
+    return vals.slice(0, 10).map((v) => (side === 'over' ? v > prop.line : v < prop.line))
+  }, [prop, side])
 
   const Icon = MARKET_ICONS[prop.market]
 
@@ -184,16 +273,27 @@ function PropDrawer({ prop, onClose }: { prop: PropLine; onClose: () => void }) 
           </button>
         </div>
 
-        {/* Prop summary */}
+        {/* Prop summary — active side first */}
         <div className="mb-6 flex items-center justify-between rounded-md border border-line bg-bg-2 px-4 py-3">
           <span className="flex items-center gap-2 text-sm font-semibold text-text-1">
             <Icon size={15} strokeWidth={1.5} className="text-sp-indigo" />
             <span className="data-mono">
-              {prop.market} o{prop.line}
+              {prop.market} {side === 'over' ? 'o' : 'u'}
+              {prop.line}
             </span>
           </span>
           <span className="data-mono text-right text-sm text-text-2">
-            {formatOdds(consensusOver(prop))} <span className="text-text-3">/ u</span> {formatOdds(consensusUnder(prop))}
+            {side === 'over' ? (
+              <>
+                {formatOdds(consensusOver(prop))} <span className="text-text-3">/ u</span>{' '}
+                {formatOdds(consensusUnder(prop))}
+              </>
+            ) : (
+              <>
+                <span className="text-text-3">u</span> {formatOdds(consensusUnder(prop))}{' '}
+                <span className="text-text-3">/ o</span> {formatOdds(consensusOver(prop))}
+              </>
+            )}
             {hasRealOdds(prop) && prop.books != null && (
               <span className="block text-[10px] text-text-3">consensus · {prop.books} books</span>
             )}
@@ -216,23 +316,28 @@ function PropDrawer({ prop, onClose }: { prop: PropLine; onClose: () => void }) 
           </div>
         )}
 
-        {/* Hit rates */}
-        <p className="overline-caption mb-2 text-text-3">Hit rates</p>
+        {/* Hit rates — active side */}
+        <p className="overline-caption mb-2 text-text-3">Hit rates · {side}</p>
         <div className="mb-6 grid grid-cols-3 gap-2">
           {HIT_WINDOWS.map((w) => {
-            const pct = Math.round(prop.hitRates[w] * 100)
+            const sr = sideRate(prop, w, side)
+            const pct = Math.round(sr.rate * 100)
             return (
-              <div key={w} className="rounded-md border border-line bg-bg-2 px-3 py-2.5">
+              <div
+                key={w}
+                className="rounded-md border border-line bg-bg-2 px-3 py-2.5"
+                title={sr.approx ? 'Complement of the over rate — pushes not excluded (no per-game log)' : undefined}
+              >
                 <span className="overline-caption block text-text-3">{w}</span>
                 <span
                   className={`data-mono text-lg font-semibold ${
-                    prop.hitRates[w] >= 0.7 ? 'text-[#FCA5A5]' : 'text-text-1'
+                    sr.rate >= 0.7 ? 'text-[#FCA5A5]' : 'text-text-1'
                   }`}
                 >
                   {pct}%
                 </span>
                 <span className="data-mono ml-1 text-[10px] text-text-3">
-                  {Math.round(prop.hitRates[w] * WINDOW_N[w])}/{WINDOW_N[w]}
+                  {Math.round(sr.rate * WINDOW_N[w])}/{WINDOW_N[w]}
                 </span>
               </div>
             )
@@ -240,7 +345,7 @@ function PropDrawer({ prop, onClose }: { prop: PropLine; onClose: () => void }) 
         </div>
 
         {/* Game log strip */}
-        <p className="overline-caption mb-2 text-text-3">Last 10 — over hit / miss</p>
+        <p className="overline-caption mb-2 text-text-3">Last 10 — {side} hit / miss</p>
         <div className="mb-6 flex items-center gap-1.5">
           {(log ?? []).map((hit, i) => (
             <motion.span
@@ -248,7 +353,7 @@ function PropDrawer({ prop, onClose }: { prop: PropLine; onClose: () => void }) 
               initial={{ scale: 0, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               transition={{ duration: 0.25, delay: i * 0.02, ease: [0.34, 1.56, 0.64, 1] }}
-              title={hit ? 'Hit (over)' : 'Miss'}
+              title={hit ? `Hit (${side})` : 'Miss'}
               className={`flex h-7 w-7 items-center justify-center rounded-sm text-[10px] font-bold ${
                 hit ? 'bg-pos/20 text-[#FCA5A5]' : 'bg-neg/20 text-[#93C5FD]'
               }`}
@@ -326,6 +431,10 @@ function PropDrawer({ prop, onClose }: { prop: PropLine; onClose: () => void }) 
 export interface ResultsTableProps {
   rows: PropLine[]
   window: HitWindow
+  /** active side — labels, prices, rates, filters all follow it */
+  side: PropSide
+  /** window the numeric edge column is computed on */
+  edgeWindow: HitWindow
   sortKey: HitWindow
   sortDir: SortDir
   onSort: (key: HitWindow) => void
@@ -337,9 +446,18 @@ export interface ResultsTableProps {
   teaser?: boolean
 }
 
+/** Optional desktop columns, all default-on. Core columns are not toggleable. */
+const TOGGLEABLE_COLS = [
+  { key: 'fair', label: 'Fair (de-vig)' },
+  { key: 'throws', label: 'Throws' },
+] as const
+type ToggleableCol = (typeof TOGGLEABLE_COLS)[number]['key']
+
 export default function ResultsTable({
   rows,
   window,
+  side,
+  edgeWindow,
   sortKey,
   sortDir,
   onSort,
@@ -349,6 +467,16 @@ export default function ResultsTable({
   teaser = false,
 }: ResultsTableProps) {
   const [drawerProp, setDrawerProp] = useState<PropLine | null>(null)
+  const [hiddenCols, setHiddenCols] = useState<ReadonlySet<ToggleableCol>>(new Set())
+  const [colsOpen, setColsOpen] = useState(false)
+  const showCol = (c: ToggleableCol) => !hiddenCols.has(c)
+  const toggleCol = (c: ToggleableCol) =>
+    setHiddenCols((s) => {
+      const next = new Set(s)
+      if (next.has(c)) next.delete(c)
+      else next.add(c)
+      return next
+    })
 
   const sortHeader = (w: HitWindow) => (
     <button
@@ -372,22 +500,47 @@ export default function ResultsTable({
           {p.team} · {p.opponent}
         </span>
       </th>
-      {/* Prop */}
+      {/* Prop — active side's line prefix and price first */}
       <td className="border-b border-l border-line px-4 py-3">
         <span className="data-mono block text-[13px] font-bold text-text-1">
-          {p.market} o{p.line}
+          {p.market} {side === 'over' ? 'o' : 'u'}
+          {p.line}
         </span>
-        <PriceBlock prop={p} compact />
+        <PriceBlock prop={p} side={side} compact />
       </td>
-      {/* Hit windows */}
-      {HIT_WINDOWS.map((w) => (
-        <td key={w} className="border-b border-l border-line px-4 py-3">
-          <HitBar rate={p.hitRates[w]} windowKey={w} primary={w === window} rowIndex={i} resetKey={resetKey} />
+      {/* Hit windows — active side's rate */}
+      {HIT_WINDOWS.map((w) => {
+        const sr = sideRate(p, w, side)
+        return (
+          <td key={w} className="border-b border-l border-line px-4 py-3">
+            <HitBar rate={sr.rate} approx={sr.approx} windowKey={w} primary={w === window} rowIndex={i} resetKey={resetKey} />
+          </td>
+        )
+      })}
+      {/* Fair (de-vigged) probability, optional column */}
+      {showCol('fair') && (
+        <td className="border-b border-l border-line px-4 py-3 text-center">
+          <FairCell prop={p} side={side} />
         </td>
-      ))}
-      {/* Edge */}
+      )}
+      {/* Opposing pitcher's throwing hand, optional column */}
+      {showCol('throws') && (
+        <td className="border-b border-l border-line px-4 py-3 text-center">
+          {(() => {
+            const hand = opposingPitcherHand(p)
+            return hand ? (
+              <span className="data-mono text-[12px] font-semibold text-text-1">{hand}</span>
+            ) : (
+              <span className="data-mono text-text-3" title="No probable pitcher on the slate for this game">
+                —
+              </span>
+            )
+          })()}
+        </td>
+      )}
+      {/* Edge — numeric side edge on the selected edge window + VALUE badge */}
       <td className="border-b border-l border-line px-4 py-3 text-center">
-        {p.priceAlert ? <ValueBadge rowIndex={i} /> : <span className="data-mono text-text-3">—</span>}
+        <EdgeCell prop={p} side={side} edgeWindow={edgeWindow} rowIndex={i} />
       </td>
       {/* Bookmark */}
       <td className="border-b border-l border-line px-3 py-3 text-center">
@@ -410,6 +563,43 @@ export default function ResultsTable({
 
   return (
     <div className={teaser ? 'pointer-events-none select-none' : ''}>
+      {/* Column visibility — extends the scanner controls, desktop table only */}
+      {!teaser && (
+        <div className="relative hidden justify-end px-4 pt-3 sm:flex">
+          <button
+            type="button"
+            onClick={() => setColsOpen((o) => !o)}
+            aria-expanded={colsOpen}
+            aria-label="Choose which columns render"
+            className="flex items-center gap-1.5 rounded-sm border border-line bg-bg-2 px-2.5 py-1.5 text-[12px] font-medium text-text-2 transition-colors hover:text-text-1"
+          >
+            <Columns3 size={13} strokeWidth={1.5} />
+            Columns
+          </button>
+          {colsOpen && (
+            <>
+              <div className="fixed inset-0 z-30" onClick={() => setColsOpen(false)} />
+              <div className="absolute right-4 top-full z-40 mt-1 w-44 rounded-md border border-line bg-bg-2 p-1.5 shadow-raised">
+                {TOGGLEABLE_COLS.map((c) => (
+                  <label
+                    key={c.key}
+                    className="flex cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-[12px] text-text-1 transition-colors hover:bg-bg-3"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={showCol(c.key)}
+                      onChange={() => toggleCol(c.key)}
+                      className="accent-sp-indigo"
+                    />
+                    {c.label}
+                  </label>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
       {/* Desktop table */}
       <div className="hidden overflow-x-auto sm:block">
         <table className="w-full border-collapse text-sm">
@@ -426,8 +616,30 @@ export default function ResultsTable({
                   {sortHeader(w)}
                 </th>
               ))}
-              <th scope="col" className="min-w-[90px] border-b border-l border-line px-4 py-2.5 text-center overline-caption text-text-3">
-                Edge
+              {showCol('fair') && (
+                <th
+                  scope="col"
+                  className="min-w-[90px] border-b border-l border-line px-4 py-2.5 text-center overline-caption text-text-3"
+                  title="De-vigged consensus probability — the book's hold removed (multiplicative method)"
+                >
+                  Fair · de-vig
+                </th>
+              )}
+              {showCol('throws') && (
+                <th
+                  scope="col"
+                  className="min-w-[70px] border-b border-l border-line px-4 py-2.5 text-center overline-caption text-text-3"
+                  title="Opposing probable pitcher's throwing hand"
+                >
+                  Throws
+                </th>
+              )}
+              <th
+                scope="col"
+                className="min-w-[100px] border-b border-l border-line px-4 py-2.5 text-center overline-caption text-text-3"
+                title="Hit rate minus the de-vigged price, percentage points — a historical rate vs a fair price, not a model probability"
+              >
+                Edge · {edgeWindow}
               </th>
               <th scope="col" className="w-12 border-b border-l border-line px-3 py-2.5" aria-label="Save" />
             </tr>
@@ -454,6 +666,10 @@ export default function ResultsTable({
       <div className="space-y-3 p-4 sm:hidden">
         {rows.map((p, i) => {
           const Icon = MARKET_ICONS[p.market]
+          const bestTag = side === 'over' ? bestOverTag(p) : bestUnderTag(p)
+          const fair = devigProp(p)
+          const fairSide = fair ? (side === 'over' ? fair.over : fair.under) : null
+          const hand = opposingPitcherHand(p)
           return (
             <motion.button
               key={p.id}
@@ -488,26 +704,40 @@ export default function ResultsTable({
                   </span>
                 </div>
               </div>
-              <p className="data-mono mb-3 flex flex-wrap items-center gap-1.5 text-[12px] font-bold text-text-1">
+              <p className="data-mono mb-1.5 flex flex-wrap items-center gap-1.5 text-[12px] font-bold text-text-1">
                 <Icon size={13} strokeWidth={1.5} className="text-sp-indigo" />
-                {p.market} o{p.line}
-                <span className="font-medium text-text-2">{formatOdds(consensusOver(p))}</span>
-                {bestOverTag(p) && (
+                {p.market} {side === 'over' ? 'o' : 'u'}
+                {p.line}
+                <span className="font-medium text-text-2">
+                  {side === 'over' ? '' : 'u '}
+                  {formatOdds(side === 'over' ? consensusOver(p) : consensusUnder(p))}
+                </span>
+                {bestTag && (
                   <span className="rounded-sm border border-sp-indigo/40 bg-sp-indigo/10 px-1 py-px text-[9px] font-semibold tracking-wide text-sp-indigo">
-                    best {bestOverTag(p)}
+                    best {bestTag}
                   </span>
                 )}
                 {!hasRealOdds(p) && p.sport === 'nhl' && (
                   <span className="text-[9px] font-normal text-text-3/70">no odds feed</span>
                 )}
               </p>
-              <div className="grid grid-cols-3 gap-3">
-                {HIT_WINDOWS.map((w) => (
-                  <div key={w}>
-                    <span className="overline-caption mb-1 block text-[9px] text-text-3">{w}</span>
-                    <HitBar rate={p.hitRates[w]} windowKey={w} primary={w === window} rowIndex={i} resetKey={resetKey} />
-                  </div>
-                ))}
+              {(fairSide != null || hand) && (
+                <p className="data-mono mb-3 text-[10px] text-text-3">
+                  {fairSide != null && <span>Fair {Math.round(fairSide * 100)}% (de-vig)</span>}
+                  {fairSide != null && hand && <span> · </span>}
+                  {hand && <span>opp {hand}HP</span>}
+                </p>
+              )}
+              <div className={`grid grid-cols-3 gap-3 ${fairSide != null || hand ? '' : 'mt-1.5'}`}>
+                {HIT_WINDOWS.map((w) => {
+                  const sr = sideRate(p, w, side)
+                  return (
+                    <div key={w}>
+                      <span className="overline-caption mb-1 block text-[9px] text-text-3">{w}</span>
+                      <HitBar rate={sr.rate} approx={sr.approx} windowKey={w} primary={w === window} rowIndex={i} resetKey={resetKey} />
+                    </div>
+                  )
+                })}
               </div>
             </motion.button>
           )
@@ -516,7 +746,7 @@ export default function ResultsTable({
 
       {/* Drawer */}
       <AnimatePresence>
-        {drawerProp && <PropDrawer prop={drawerProp} onClose={() => setDrawerProp(null)} />}
+        {drawerProp && <PropDrawer prop={drawerProp} side={side} onClose={() => setDrawerProp(null)} />}
       </AnimatePresence>
     </div>
   )

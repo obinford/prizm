@@ -19,7 +19,7 @@ import {
   Zap,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
-import type { HitWindow, PropMarket } from '@/data/props'
+import type { HitWindow, PropMarket, PropSide } from '@/data/props'
 import { HIT_WINDOWS, MLB_MARKETS, NHL_MARKETS } from '@/data/props'
 
 export const MARKET_ICONS: Record<PropMarket, LucideIcon> = {
@@ -51,6 +51,12 @@ export interface ScannerState {
   minHit: number
   alertsOnly: boolean
   search: string
+  /** which side of the line the rates/filters/sort act on */
+  side: PropSide
+  /** exact-line filter as typed; '' = any line */
+  line: string
+  /** window the numeric edge column is computed on */
+  edgeWindow: HitWindow
 }
 
 interface Props {
@@ -131,6 +137,50 @@ export default function ScannerControls({ state, onChange }: Props) {
         ))}
       </div>
 
+      {/* Over / Under segmented control */}
+      <div
+        className="flex items-center rounded-full border border-line bg-bg-2 p-0.5"
+        role="group"
+        aria-label="Side"
+      >
+        {(['over', 'under'] as const).map((s) => (
+          <button
+            key={s}
+            type="button"
+            onClick={() => onChange({ ...state, side: s })}
+            aria-pressed={state.side === s}
+            className={`data-mono relative inline-flex min-h-10 items-center justify-center rounded-full px-4 py-1.5 text-[12px] font-bold uppercase tracking-wide transition-colors ${
+              state.side === s ? 'text-sp-indigo' : 'text-text-3 hover:text-text-2'
+            }`}
+          >
+            {state.side === s && (
+              <motion.span
+                layoutId="side-pill"
+                transition={{ type: 'spring', stiffness: 500, damping: 38 }}
+                className="absolute inset-0 rounded-full bg-bg-3"
+              />
+            )}
+            <span className="relative">{s}</span>
+          </button>
+        ))}
+      </div>
+
+      {/* Exact-line filter */}
+      <div className="flex items-center gap-2">
+        <label htmlFor="line-filter" className="overline-caption text-text-3">
+          Line
+        </label>
+        <input
+          id="line-filter"
+          value={state.line}
+          onChange={(e) => onChange({ ...state, line: e.target.value })}
+          placeholder="any"
+          inputMode="decimal"
+          aria-label="Filter to an exact line"
+          className="data-mono h-9 w-16 rounded-sm border border-line bg-bg-2 px-2 text-base text-text-1 placeholder:text-text-3 focus:border-sp-indigo focus:outline-none focus:ring-[3px] focus:ring-[rgba(99,102,241,0.25)] md:text-[13px]"
+        />
+      </div>
+
       {/* Min hit-rate slider */}
       <div className="flex items-center gap-2.5">
         <label htmlFor="min-hit" className="overline-caption text-text-3">
@@ -154,6 +204,37 @@ export default function ScannerControls({ state, onChange }: Props) {
         >
           ≥{state.minHit}%
         </motion.span>
+      </div>
+
+      {/* Edge window selector — which window the numeric edge column uses */}
+      <div className="flex items-center gap-2">
+        <span className="overline-caption text-text-3">Edge</span>
+        <div
+          className="flex items-center rounded-full border border-line bg-bg-2 p-0.5"
+          role="group"
+          aria-label="Edge window"
+        >
+          {HIT_WINDOWS.map((w) => (
+            <button
+              key={w}
+              type="button"
+              onClick={() => onChange({ ...state, edgeWindow: w })}
+              aria-pressed={state.edgeWindow === w}
+              className={`data-mono relative inline-flex min-h-10 min-w-10 items-center justify-center rounded-full px-2.5 py-1.5 text-[12px] font-semibold transition-colors ${
+                state.edgeWindow === w ? 'text-sp-indigo' : 'text-text-3 hover:text-text-2'
+              }`}
+            >
+              {state.edgeWindow === w && (
+                <motion.span
+                  layoutId="edge-window-pill"
+                  transition={{ type: 'spring', stiffness: 500, damping: 38 }}
+                  className="absolute inset-0 rounded-full bg-bg-3"
+                />
+              )}
+              <span className="relative">{w}</span>
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Price alerts only switch */}

@@ -8,7 +8,7 @@ import type { SortDir } from '@/pages/hit-rates/ResultsTable'
 import UpgradeWall from '@/pages/hit-rates/UpgradeWall'
 import SummaryStrip from '@/pages/hit-rates/SummaryStrip'
 import { saveAngle } from '@/pages/angles/store'
-import { getProps, formatOdds } from '@/data/props'
+import { getProps, formatOdds, sideRate } from '@/data/props'
 import type { HitWindow, PropLine } from '@/data/props'
 import { MLB_MARKETS, NHL_MARKETS } from '@/data/props'
 import { getPlan, onPlanChange } from '@/lib/plan'
@@ -25,6 +25,9 @@ export default function HitRates() {
     minHit: 60,
     alertsOnly: false,
     search: '',
+    side: 'over',
+    line: '',
+    edgeWindow: 'L10',
   })
   const [sortKey, setSortKey] = useState<HitWindow>('L10')
   const [sortDir, setSortDir] = useState<SortDir>('desc')
@@ -55,10 +58,14 @@ export default function HitRates() {
 
   const filtered = useMemo(() => {
     const q = scanner.search.trim().toLowerCase()
+    // Exact-line filter: only applies when the input parses to a finite number;
+    // partial or non-numeric text is ignored rather than silently matching nothing.
+    const lineNum = scanner.line.trim() === '' ? null : Number(scanner.line.trim())
     return sportProps.filter(
       (p) =>
         (scanner.markets.length === 0 || scanner.markets.includes(p.market)) &&
-        p.hitRates[scanner.window] * 100 >= scanner.minHit &&
+        (lineNum == null || !Number.isFinite(lineNum) || p.line === lineNum) &&
+        sideRate(p, scanner.window, scanner.side).rate * 100 >= scanner.minHit &&
         (!scanner.alertsOnly || p.priceAlert) &&
         (!q || p.player.toLowerCase().includes(q) || p.team.toLowerCase().includes(q)),
     )
@@ -68,11 +75,11 @@ export default function HitRates() {
     const arr = [...filtered]
     arr.sort((a, b) =>
       sortDir === 'desc'
-        ? b.hitRates[sortKey] - a.hitRates[sortKey]
-        : a.hitRates[sortKey] - b.hitRates[sortKey],
+        ? sideRate(b, sortKey, scanner.side).rate - sideRate(a, sortKey, scanner.side).rate
+        : sideRate(a, sortKey, scanner.side).rate - sideRate(b, sortKey, scanner.side).rate,
     )
     return arr
-  }, [filtered, sortKey, sortDir])
+  }, [filtered, sortKey, sortDir, scanner.side])
 
   const gated = plan === 'dashboards'
   const visibleRows = gated ? sorted.slice(0, FREE_ROWS) : sorted
@@ -85,6 +92,9 @@ export default function HitRates() {
     scanner.minHit,
     scanner.alertsOnly,
     scanner.search,
+    scanner.side,
+    scanner.line,
+    scanner.edgeWindow,
     plan,
   ])
 
@@ -98,8 +108,8 @@ export default function HitRates() {
 
   const onBookmark = (p: PropLine) => {
     saveAngle(
-      `${p.player} ${p.market} o${p.line}`,
-      `${p.team} ${p.opponent} · ${formatOdds(p.overPrice)} · L10 ${Math.round(p.hitRates.L10 * 100)}%`,
+      `${p.player} ${p.market} ${scanner.side === 'over' ? 'o' : 'u'}${p.line}`,
+      `${p.team} ${p.opponent} · ${formatOdds(scanner.side === 'over' ? p.overPrice : p.underPrice)} · L10 ${Math.round(sideRate(p, 'L10', scanner.side).rate * 100)}% ${scanner.side}`,
       p.sport,
     )
     setBookmarked((s) => new Set(s).add(p.id))
@@ -127,9 +137,11 @@ export default function HitRates() {
   }
 
   const alertsCount = filtered.filter((p) => p.priceAlert).length
-  const top = [...filtered].sort((a, b) => b.hitRates[scanner.window] - a.hitRates[scanner.window])[0]
+  const top = [...filtered].sort(
+    (a, b) => sideRate(b, scanner.window, scanner.side).rate - sideRate(a, scanner.window, scanner.side).rate,
+  )[0]
   const topLine = top
-    ? `${top.player.split(' ').map((w, i) => (i === 0 ? `${w[0]}.` : w)).join(' ')} ${top.market} o${top.line} — ${Math.round(top.hitRates[scanner.window] * 100)}% ${scanner.window}`
+    ? `${top.player.split(' ').map((w, i) => (i === 0 ? `${w[0]}.` : w)).join(' ')} ${top.market} ${scanner.side === 'over' ? 'o' : 'u'}${top.line} — ${Math.round(sideRate(top, scanner.window, scanner.side).rate * 100)}% ${scanner.window} ${scanner.side}`
     : null
 
   const controls = <ScannerControls state={scanner} onChange={handleScanner} />
@@ -217,7 +229,17 @@ export default function HitRates() {
             <button
               type="button"
               onClick={() =>
-                handleScanner({ sport: scanner.sport, markets: [], window: 'L10', minHit: 0, alertsOnly: false, search: '' })
+                handleScanner({
+                  sport: scanner.sport,
+                  markets: [],
+                  window: 'L10',
+                  minHit: 0,
+                  alertsOnly: false,
+                  search: '',
+                  side: 'over',
+                  line: '',
+                  edgeWindow: 'L10',
+                })
               }
               className="rounded-md border border-line bg-bg-2 px-4 py-2.5 text-sm font-medium text-text-1 transition-colors hover:bg-bg-3"
             >
@@ -229,6 +251,8 @@ export default function HitRates() {
             <ResultsTable
               rows={visibleRows}
               window={scanner.window}
+              side={scanner.side}
+              edgeWindow={scanner.edgeWindow}
               sortKey={sortKey}
               sortDir={sortDir}
               onSort={onSort}
@@ -246,6 +270,8 @@ export default function HitRates() {
                       <ResultsTable
                         rows={teaserRows}
                         window={scanner.window}
+                        side={scanner.side}
+                        edgeWindow={scanner.edgeWindow}
                         sortKey={sortKey}
                         sortDir={sortDir}
                         onSort={() => {}}
