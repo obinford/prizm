@@ -630,7 +630,7 @@ export function propSnapshot(prop: PropLine): AngleSnapshot {
       label: `${prop.player} — ${prop.market}`,
       line: `O ${prop.line} (${prop.overPrice > 0 ? '+' : ''}${prop.overPrice})`,
       rates: { ...prop.hitRates },
-      alert: prop.priceAlert,
+      alert: prop.priceAlert ?? false, // FIX 8: null = no signal, never an alert
     },
   }
 }

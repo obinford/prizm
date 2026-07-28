@@ -73,13 +73,18 @@ export interface PropLine {
   opponent: string
   market: PropMarket
   line: number
-  overPrice: number // American odds — best over price for MLB (sv_odds); flat -115 for NHL
+  overPrice: number // American odds — best over price for MLB (sv_odds); flat -115 only on the no-odds-feed path (explicit NHL ask / MLB fallback)
   underPrice: number
   hitRates: Record<HitWindow, number> // 0–1 over hit rate
-  priceAlert?: boolean
-  edgeScore?: number // 0–100 Prizm edge score
+  /** NULL whenever oddsSource !== 'sv_odds' (FIX 8) — never an alert on a
+   *  price that does not exist. Treat null as "no signal". */
+  priceAlert?: boolean | null
+  /** NULL whenever oddsSource !== 'sv_odds' (FIX 8) — never an edge computed
+   *  against an invented -115. Treat null as "no signal", not a low score. */
+  edgeScore?: number | null
   gameId: string
   // ── real-odds fields (sv_odds, MLB only) ──
+  oddsDate?: string // sv_odds game_date these prices are for (YYYY-MM-DD) — drives the stale-board warning
   svPropType?: string // raw sv_odds prop_type, e.g. 'strikeouts thrown'
   overBook?: string | null // best over book
   underBook?: string | null // best under book

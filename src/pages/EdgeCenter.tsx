@@ -9,6 +9,7 @@ import { getPlan, onPlanChange } from '@/lib/plan'
 import { getFollowedIds, onFollowsChange } from '@/lib/follows'
 import { DeltaChip, EdgeGauge, SportChip, ToastViewport } from './gamecenter/kit'
 import { hitRateTint, saveAngle, toast } from './gamecenter/utils'
+import OddsFreshness from '@/components/OddsFreshness'
 import QuickAlerts from './edgecenter/QuickAlerts'
 import HotCold from './edgecenter/HotCold'
 import FilterLibrary from './edgecenter/FilterLibrary'
@@ -336,6 +337,14 @@ export default function EdgeCenter() {
           >
             {topEdges().length} edges found
           </motion.p>
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.4, delay: 0.45 }}
+            className="mt-2 flex flex-wrap items-center gap-2"
+          >
+            <OddsFreshness />
+          </motion.div>
         </div>
         <div className="flex items-center gap-2">
           <button

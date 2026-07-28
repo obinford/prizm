@@ -19,14 +19,11 @@ const MARKETS = [
   "Walks", "Stolen Bases", "Hits + Runs + RBIs",
 ] as const;
 
-function toPropLine(row: PropRow, player: { slug: string; name: string; team: string }): PropLine {
+// Exported for the FIX 8 unit test (api/propsRouter.test.ts).
+export function toPropLine(row: PropRow, player: { slug: string; name: string; team: string }): PropLine {
   const l5 = Number(row.l5);
   const l10 = Number(row.l10);
   const l20 = Number(row.l20);
-  const blended = l5 * 0.5 + l10 * 0.3 + l20 * 0.2;
-  // deterministic alert: strong recent over trend vs flat -115 price
-  const priceAlert = l5 >= 0.8 && l10 >= 0.7;
-  const edgeScore = Math.round(Math.min(99, Math.max(8, blended * 100 + (priceAlert ? 8 : 0) - 4)));
   return {
     id: `prop-${row.id}`,
     sport: row.sport,
@@ -39,18 +36,24 @@ function toPropLine(row: PropRow, player: { slug: string; name: string; team: st
     overPrice: row.priceOver,
     underPrice: row.priceUnder,
     hitRates: { L5: l5, L10: l10, L20: l20 },
+    // FIX 8: no edgeScore / priceAlert on the flat path. These rows carry an
+    // invented -115 price; a "price alert" or "edge score" computed against it
+    // is fabrication in the exact surface a user acts from. hasRealOdds()
+    // already gates the de-vig math — these two fields are the ones that sort
+    // and badge, so they must be null, not a number.
+    priceAlert: null,
+    edgeScore: null,
     // No recentValues on the derived/flat path — this row's hit rates come from
     // pre-aggregated ingest output, not per-game logs. The drawer renders an
     // explicit "no game log" state rather than inventing one.
-    priceAlert,
-    edgeScore,
     gameId: row.gameId,
     oddsSource: "flat",
   };
 }
 
-/** Existing MySQL-derived props (NHL always; MLB only as fallback when sv_odds
- * has no coverage). Prices flat -115 (illustrative, no odds feed). */
+/** Existing MySQL-derived props. NHL: only on an explicit sport:"nhl" ask
+ * (parked vertical — no odds feed, preseason slate, prior-season logs).
+ * MLB: fallback only when sv_odds has no coverage. Prices flat -115. */
 async function mysqlProps(sport: Sport): Promise<PropLine[]> {
   const db = getDb();
   const rows = await db
@@ -125,6 +128,7 @@ function buildMlbProp(
     priceAlert,
     edgeScore,
     gameId: slate.gameId,
+    oddsDate: odd.gameDate, // sv_odds game_date — drives the stale-board warning (FIX 10)
     svPropType: odd.propType,
     overBook: odd.overBook,
     underBook: odd.underBook,
@@ -202,7 +206,12 @@ async function queryProps(filters: {
   playerSlug?: string;
 }): Promise<PropLine[]> {
   const wantMlb = !filters.sport || filters.sport === "mlb";
-  const wantNhl = !filters.sport || filters.sport === "nhl";
+  // FIX 8: NHL is a parked vertical and stays OFF the prop board by default.
+  // Its rows are wrong in three ways at once — invented flat -115 prices
+  // (sv_odds has zero NHL rows), a preseason slate two months out, and hit
+  // rates from last season's game logs. Only an explicit sport:"nhl" ask
+  // returns them; the UI never asks.
+  const wantNhl = filters.sport === "nhl";
   let out: PropLine[] = [];
 
   if (wantMlb) {
@@ -216,7 +225,7 @@ async function queryProps(filters: {
     out.push(...mlb);
   }
   if (wantNhl) {
-    out.push(...(await mysqlProps("nhl"))); // NHL unchanged: MySQL ingestion
+    out.push(...(await mysqlProps("nhl"))); // explicit ask only — see FIX 8 note above
   }
 
   const w: HitWindow = filters.window ?? "L10";

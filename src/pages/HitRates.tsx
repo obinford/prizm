@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { Gem, SlidersHorizontal } from 'lucide-react'
+import { Construction, Gem, SlidersHorizontal } from 'lucide-react'
 import ScannerControls from '@/pages/hit-rates/ScannerControls'
 import type { ScannerState } from '@/pages/hit-rates/ScannerControls'
 import ResultsTable from '@/pages/hit-rates/ResultsTable'
 import type { SortDir } from '@/pages/hit-rates/ResultsTable'
 import UpgradeWall from '@/pages/hit-rates/UpgradeWall'
 import SummaryStrip from '@/pages/hit-rates/SummaryStrip'
+import OddsFreshness from '@/components/OddsFreshness'
 import { saveAngle } from '@/pages/angles/store'
 import { getProps, formatOdds, sideRate } from '@/data/props'
 import type { HitWindow, PropLine } from '@/data/props'
@@ -166,6 +167,7 @@ export default function HitRates() {
         <span className="data-mono rounded-sm border border-line bg-bg-2 px-2 py-1 text-[11px] text-text-2">
           {sportProps.length} props · {sportMarkets.length} markets
         </span>
+        {scanner.sport === 'mlb' && <OddsFreshness />}
 
         {/* Sport segmented toggle */}
         <div
@@ -205,6 +207,10 @@ export default function HitRates() {
         </button>
       </motion.div>
 
+      {scanner.sport === 'nhl' ? (
+        <NhlParkedPanel />
+      ) : (
+      <>
       {/* S2 — scanner controls (desktop) */}
       <motion.div
         initial={{ opacity: 0, y: 12 }}
@@ -295,6 +301,8 @@ export default function HitRates() {
 
       {/* S5 — summary strip */}
       <SummaryStrip alertsCount={alertsCount} topLine={topLine} onExport={exportCsv} />
+      </>
+      )}
 
       {/* Mobile controls bottom sheet */}
       {controlsOpen && (
@@ -339,6 +347,65 @@ export default function HitRates() {
           </motion.div>
         )}
       </AnimatePresence>
+    </motion.div>
+  )
+}
+
+
+/**
+ * NHL hit-rate surface — gated (FIX 8, Step 10 pattern).
+ *
+ * NHL is a parked vertical, and the prop board was the one surface the
+ * parking missed. Every NHL prop row was wrong in three ways at once, and
+ * the server now excludes them by default (props.list is MLB-only unless a
+ * caller explicitly asks for NHL). This panel replaces the scanner results
+ * whenever the sport toggle sits on NHL — it names the gaps rather than
+ * rendering an empty table that looks like a filter miss.
+ *
+ * Unparking is Oakley's call: it needs a real NHL odds feed, a current
+ * slate, and in-season game logs — not a filter change.
+ */
+const NHL_GAPS = [
+  'No NHL odds feed — sv_odds carries zero NHL rows, so every NHL "price" was the invented flat −115/−115 fallback',
+  'The NHL slate is 2026-09-29 preseason — the games those props pointed at are two months away',
+  'The hit rates came from a different season — NHL game logs end 2026-04-16',
+]
+
+function NhlParkedPanel() {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+      className="prizm-card p-8"
+    >
+      <div className="mb-4 flex items-center gap-3">
+        <Construction size={20} strokeWidth={1.5} className="text-sp-amber" />
+        <h3 className="font-display text-lg font-semibold text-text-1">NHL prop hit rates</h3>
+        <span className="data-mono rounded-sm border border-sp-amber/40 bg-sp-amber/10 px-1.5 py-px text-[10px] font-bold uppercase tracking-widest text-sp-amber">
+          Parked
+        </span>
+      </div>
+
+      <p className="mb-5 max-w-2xl text-sm leading-relaxed text-text-2">
+        NHL is a parked vertical. It briefly stayed on this board by accident, and what it showed
+        was wrong in three ways at once — so it comes down rather than sit here looking plausible:
+      </p>
+
+      <ul className="mb-5 max-w-2xl space-y-2">
+        {NHL_GAPS.map((g) => (
+          <li key={g} className="flex items-start gap-2 text-sm leading-relaxed text-text-2">
+            <span className="mt-[9px] h-1 w-1 shrink-0 rounded-full bg-sp-amber" />
+            {g}
+          </li>
+        ))}
+      </ul>
+
+      <p className="max-w-2xl text-sm leading-relaxed text-text-3">
+        It returns when there is a real NHL odds feed, a current slate, and in-season game logs
+        behind it. The MLB scanner is unaffected — every row there prices from sv_odds across
+        multiple books.
+      </p>
     </motion.div>
   )
 }

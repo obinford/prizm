@@ -235,15 +235,40 @@ const TRIAL_DAYS = 7
 /**
  * Today / Tomorrow stepper. Previously three inert elements with no handlers —
  * it rendered the literal string "Today" and neither chevron did anything.
+ *
+ * FIX 9 (option b — scoped): the stepper only moves the surfaces that read
+ * useSlateDay() — the Gamecenter and Weather tabs. It does NOT move the prop
+ * board (Edgecenter, Hit Rates) or the player tables: props.list serves the
+ * latest priced sv_odds date regardless. A control that looks like it filters
+ * and silently does not is worse than no control, so outside those two tabs
+ * the stepper disables and says why. (Threading a date through props.list
+ * stays on the table, but sv_odds only ever holds dates ≤ today — Tomorrow
+ * would be a permanently empty board.)
  */
 function SlateStepper() {
   const day = useSlateDay()
+  const { pathname, search } = useLocation()
+  const params = new URLSearchParams(search)
+  const tab = params.get('tab') ?? 'gamecenter'
+  const view = params.get('view')
+  const appliesHere =
+    pathname === '/dashboard' &&
+    view !== 'hitrates' &&
+    (tab === 'gamecenter' || tab === 'weather')
+  const disabledTip =
+    'Shows Gamecenter and Weather for Today / Tomorrow. The prop board and player tables always show the latest priced slate — the stepper does not move them.'
   return (
-    <div className="ml-2 hidden items-center gap-1 rounded-md border border-line bg-bg-2 px-2 py-1.5 sm:flex">
+    <div
+      className={`ml-2 hidden items-center gap-1 rounded-md border border-line bg-bg-2 px-2 py-1.5 sm:flex ${
+        appliesHere ? '' : 'opacity-50'
+      }`}
+      title={appliesHere ? undefined : disabledTip}
+      aria-disabled={!appliesHere}
+    >
       <button
         type="button"
         onClick={() => stepSlateDay(-1)}
-        disabled={!canStepSlateDay(-1)}
+        disabled={!appliesHere || !canStepSlateDay(-1)}
         className="text-text-3 transition-colors hover:text-text-1 disabled:cursor-not-allowed disabled:opacity-30"
         aria-label="Previous day"
       >
@@ -253,7 +278,7 @@ function SlateStepper() {
       <button
         type="button"
         onClick={() => stepSlateDay(1)}
-        disabled={!canStepSlateDay(1)}
+        disabled={!appliesHere || !canStepSlateDay(1)}
         className="text-text-3 transition-colors hover:text-text-1 disabled:cursor-not-allowed disabled:opacity-30"
         aria-label="Next day"
       >

@@ -100,7 +100,7 @@ export function angleFromProp(prop: PropLine): GameAngle {
     deltaLine: `L10 hit rate ${l10}% · ${side} ${formatOdds(side === 'over' ? prop.overPrice : prop.underPrice)} ${prop.opponent}`,
     dPct: hitRateDelta(prop),
     confidence,
-    priceAlert: prop.priceAlert,
+    priceAlert: prop.priceAlert ?? false, // FIX 8: null = no signal, never an alert
   }
 }
 
