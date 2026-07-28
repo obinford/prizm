@@ -4,7 +4,7 @@ import { animate, motion } from 'framer-motion'
 import { Bookmark, Crosshair, FileDown, Info, Share2, Sparkles } from 'lucide-react'
 import { format } from 'date-fns'
 import { TODAYS_SLATE } from '@/data/slate'
-import { PROPS, bestOverTag, consensusOver, formatOdds, impliedProb, rawEdgePp, type PropLine } from '@/data/props'
+import { PROPS, bestOverTag, consensusOver, devigProp, edgePp, edgeSurvivesCI, ciWilson, formatOdds, windowN, type PropLine } from '@/data/props'
 import { getPlan, onPlanChange } from '@/lib/plan'
 import { getFollowedIds, onFollowsChange } from '@/lib/follows'
 import { DeltaChip, EdgeGauge, SportChip, ToastViewport } from './gamecenter/kit'
@@ -46,15 +46,15 @@ function edgeNote(p: PropLine): string {
     parts.push(`${Math.round(l20 * 100)}% over the L20`)
   }
 
-  const edge = rawEdgePp(p)
-  if (edge != null) {
-    const price = consensusOver(p)
+  const edge = edgePp(p)
+  const fair = devigProp(p)
+  if (edge != null && fair) {
     parts.push(
-      `consensus ${formatOdds(price)} implies ${Math.round(impliedProb(price) * 100)}%` +
-        ` — a ${edge >= 0 ? '+' : ''}${edge.toFixed(1)}pp gap before vig`,
+      `de-vigged fair price ${Math.round(fair.over * 100)}%` +
+        ` — a ${edge >= 0 ? '+' : ''}${edge.toFixed(1)}pp edge on n=${windowN('L10')}`,
     )
   } else {
-    parts.push('no book odds for this market — hit rate shown without a price comparison')
+    parts.push('no two-sided book price — hit rate shown without a price comparison')
   }
 
   return parts.join(' · ') + '.'
@@ -107,7 +107,7 @@ function EdgeCard({
     { dPct: hitRateTint(prop.hitRates.L20), label: `L20 form ${Math.round(prop.hitRates.L20 * 100)}%` },
   ]
   if (prop.priceAlert) {
-    const alertEdge = rawEdgePp(prop)
+    const alertEdge = edgePp(prop)
     chips.push({
       dPct: alertEdge ?? 0,
       label: `Price alert · ${formatOdds(consensusOver(prop))} consensus`,
@@ -116,6 +116,25 @@ function EdgeCard({
   const best = bestOverTag(prop)
   const angleTitle = `${prop.player} ${prop.market} o${prop.line} (${formatOdds(consensusOver(prop))})`
   const note = edgeNote(prop)
+
+  // Priced edge — de-vigged, with its honest error bar. Never rendered
+  // without its sample size; a 10-game hit rate is a point estimate, not a
+  // model probability.
+  const fair = devigProp(prop)
+  const edge = edgePp(prop)
+  const n = windowN('L10')
+  const rate = prop.hitRates.L10
+  const survives = edgeSurvivesCI(prop)
+  const edgeTip = (() => {
+    if (edge == null || !fair || rate == null) return undefined
+    const [lo, hi] = ciWilson(rate, n)
+    const loEdge = (lo - fair.over) * 100
+    const hiEdge = (hi - fair.over) * 100
+    const signed = (v: number) => `${v >= 0 ? '+' : '−'}${Math.abs(v).toFixed(1)}`
+    return `${signed(edge)}pp · 95% CI ${signed(loEdge)} to ${signed(hiEdge)} · n=${n}`
+  })()
+  const missingSideHint =
+    'No two-sided consensus price — cannot de-vig, and a one-sided edge would overstate.'
 
   return (
     <motion.article
@@ -162,6 +181,39 @@ function EdgeCard({
             <DeltaChip key={c.label} dPct={c.dPct} label={c.label} icon={i === 2 ? 'zap' : undefined} />
           ))}
         </div>
+
+        {/* Priced edge — hit rate minus de-vigged consensus, with the Wilson
+            error bar in the tooltip and the sample size always visible */}
+        <div className="data-mono mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px]">
+          {edge != null && fair ? (
+            <>
+              <span className="font-bold text-text-1" title={edgeTip}>
+                Edge {edge >= 0 ? '+' : '−'}
+                {Math.abs(edge).toFixed(1)}pp
+              </span>
+              <span className="text-text-3" title="The book's margin on this market — the excess of the two implied probabilities over 100%. A 4% hold market and a 12% hold market are not the same bet.">
+                Hold {(fair.hold * 100).toFixed(1)}%
+              </span>
+              <span className="text-text-3">n={n}</span>
+              {survives === true && (
+                <span className="rounded-sm border border-sp-cyan/40 bg-sp-cyan/10 px-1 py-px text-[9px] font-bold tracking-widest text-sp-cyan">
+                  CLEARS 95% CI
+                </span>
+              )}
+            </>
+          ) : (
+            <span className="text-text-3" title={missingSideHint}>
+              Edge —
+            </span>
+          )}
+        </div>
+        {prop.oddsSource === 'sv_odds' && (
+          <p className="data-mono mt-1 text-[10px] text-text-3">
+            Edge = hit rate − de-vigged consensus (multiplicative
+            {prop.books != null ? `, ${prop.books} books` : ''})
+          </p>
+        )}
+
         <p className="mt-2.5 flex items-start gap-1.5 text-sm text-text-2">
           <Sparkles size={14} className="mt-0.5 shrink-0 text-sp-indigo" />
           {note}

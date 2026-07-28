@@ -38,7 +38,7 @@ Verification at HEAD: `npx tsc -b` exit 0 · `npx vite build` ✓ (~5s) · index
 
 **Phase 1 — data integrity (MLB).** Every fabrication in the MLB surface is gone:
 - `splitFactor()` deleted — was multiplying every stat by a hash-derived ±6% under a split filter, including real Statcast xwOBA. Replaced with `splitStat()` / `splitWindowStat()` reading real `sv_stat_cache` split rows.
-- EdgeCenter: hardcoded "3–2" track record, five literal ✓/✗ results, "Generated 9:00 AM ET", and canned per-market prose all removed. `edgeNote()` now states only row values. Added `impliedProb()` / `rawEdgePp()` — labelled **"before vig"** pending Phase 3.2.
+- EdgeCenter: hardcoded "3–2" track record, five literal ✓/✗ results, "Generated 9:00 AM ET", and canned per-market prose all removed. `edgeNote()` now states only row values. Added `impliedProb()` / `rawEdgePp()` — raw-implied only until Phase 3.2 de-vigged it (see below).
 - GameCenter: `vsHistory()` (hash-generated batter-vs-pitcher lines) and seven `AUTHORED_READS` essays deleted.
 - Hit Rates: `propsRouter` now returns `recentValues` (real per-game values it already computed and discarded); the hit/miss strip is real. Line-history sparkline deleted — no series exists in `sv_odds`.
 - Bullpen: LEV%, fatigue pitch counts, L7/L14/L30 windows and four invented relievers removed. Kept real ERA/WHIP/K%, surfaced real BB% and reliever count. Fixed `ARI`/`AZ` join bug.
@@ -104,7 +104,7 @@ Then: **zero em-dashes expected** under vs-LHB today. Any dash is a bug. Also ca
 - **No fake AI.** No fictional model names.
 - **Copy features, never assets.** Generic data-grid patterns are fine; competitor copy, glossary wording and visual identity are not. All prose written fresh.
 - **Never start a foreground server.** Background with a timeout, then kill. `tsc -b` and `vite build` are the required checks.
-- **Three places Prizm is ahead — do not regress:** the heat implementation actually renders (Handigraphs' does not on its flagship tables); colour is baseline-relative, not league-relative; the edge says "before vig".
+- **Three places Prizm is ahead — do not regress:** the heat implementation actually renders (Handigraphs' does not on its flagship tables); colour is baseline-relative, not league-relative; the edge is de-vigged (multiplicative) and carries its Wilson CI and sample size.
 
 ## 7. Known issues not yet fixed
 
