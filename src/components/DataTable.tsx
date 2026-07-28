@@ -14,7 +14,7 @@ import { ArrowDown, Download, Gem } from 'lucide-react'
 import type { ColumnDef } from '@/lib/columns'
 import { groupSpans } from '@/lib/columns'
 import { deltaPct, deltaTextClass, formatDelta, heatCell } from '@/lib/heat'
-import { csvProvenanceLine, downloadCsv, toCsv } from '@/lib/exportCsv'
+import { csvProvenanceLine, downloadCsv, toCsv, withProvenance } from '@/lib/exportCsv'
 import { slateDate } from '@/lib/slateDay'
 
 const DASH = '—'
@@ -122,12 +122,15 @@ export default function DataTable<Row>({
     const ymd = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(
       d.getDate(),
     ).padStart(2, '0')}`
-    const head = csvProvenanceLine([
+    // Provenance goes LAST — a leading "# ..." row is read as data by every
+    // CSV parser, which would push the real header to row 2 and break the
+    // export as a data handoff.
+    const note = csvProvenanceLine([
       `Prizm export · ${exportName} · ${ymd}`,
       provenance,
       exportFilters ? `filters: ${exportFilters}` : undefined,
     ])
-    downloadCsv(`${exportName}-${ymd}.csv`, `${head}\n${toCsv(columns, sorted)}`)
+    downloadCsv(`${exportName}-${ymd}.csv`, withProvenance(toCsv(columns, sorted), note))
   }
 
   const headerTitle = (col: ColumnDef<Row>) =>

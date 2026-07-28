@@ -20,12 +20,24 @@ export function toCsv<Row>(columns: ColumnDef<Row>[], rows: Row[]): string {
 }
 
 /**
- * Provenance comment line prepended to every export. A CSV that leaves the
- * app without saying where its numbers came from is exactly the artefact
- * this project exists to not produce.
+ * Provenance line that travels with every export. A CSV that leaves the app
+ * without saying where its numbers came from is exactly the artefact this
+ * project exists to not produce.
+ *
+ * It is appended as the LAST line, not prepended as the first. CSV has no
+ * comment syntax — a leading `# ...` row is read as data, so the real header
+ * lands on row 2 and every consumer breaks. Verified: pandas.read_csv on a
+ * file with a leading `#` line returns ONE column named after the comment.
+ * Excel and Sheets do the same. Trailing keeps the header on row 1, where
+ * every parser expects it, and the provenance still ships inside the file.
  */
 export function csvProvenanceLine(parts: (string | undefined)[]): string {
   return `# ${parts.filter(Boolean).join(' · ')}`
+}
+
+/** Header row first, data, provenance last. See csvProvenanceLine. */
+export function withProvenance(csv: string, provenanceLine: string): string {
+  return `${csv}\n${provenanceLine}`
 }
 
 export function downloadCsv(filename: string, csv: string): void {
