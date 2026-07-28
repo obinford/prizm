@@ -5,11 +5,13 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { ListFilter, RotateCcw, Search, X } from 'lucide-react'
+import { ListFilter, Palette, RotateCcw, Search, X } from 'lucide-react'
 import FilterBar, { getSavedViews } from '@/components/FilterBar'
 import type { FilterDef, FilterValues } from '@/components/FilterBar'
 import { useSearchParams } from 'react-router'
 import { SLATE_DAY_LABEL, useSlateDay } from '@/lib/slateDay'
+import { useHeatPalette } from '@/lib/heatPalette'
+import StatsColorsModal from '@/components/StatsColorsModal'
 import { MLB_SLATE } from '@/data/slate'
 import { MLB_TEAMS } from '@/data/mlbTeams'
 import PitcherTable from './PitcherTable'
@@ -159,6 +161,10 @@ export default function Dashboard() {
     paramView === 'hitrates' ? 'hitrates' : 'table',
   )
   const day = useSlateDay()
+  // Subscribing here repaints every heat cell in every tab when the
+  // colourblind palette toggles inside the Stats & Colors modal.
+  useHeatPalette()
+  const [helpOpen, setHelpOpen] = useState(false)
   const scope = scopeFor(tab)
   // Default view (saved with "make default") applies on first load (§7.8).
   // Its rules restore when the view is applied from the Views menu — the
@@ -339,6 +345,16 @@ export default function Dashboard() {
             )}
           </button>
         ))}
+        {/* Stats & Colors — help/glossary surface, available on every tab */}
+        <button
+          type="button"
+          onClick={() => setHelpOpen(true)}
+          className="ml-auto flex items-center gap-1.5 rounded-sm px-2.5 py-1.5 text-[12px] font-medium text-text-3 transition-colors hover:bg-bg-2 hover:text-text-1"
+          aria-label="Open stats and colors help"
+        >
+          <Palette size={14} strokeWidth={1.5} />
+          Stats &amp; Colors
+        </button>
       </motion.div>
 
       {/* View-mode toggle — TABLE | HIT RATES, on Starters and Batters only */}
@@ -495,6 +511,11 @@ export default function Dashboard() {
             </motion.div>
           </>
         )}
+      </AnimatePresence>
+
+      {/* Stats & Colors help modal — context-aware to the active tab */}
+      <AnimatePresence>
+        {helpOpen && <StatsColorsModal tab={tab} onClose={() => setHelpOpen(false)} />}
       </AnimatePresence>
     </div>
   )
