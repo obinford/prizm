@@ -16,7 +16,7 @@ import PitcherTable from './PitcherTable'
 import LineupsTab from './LineupsTab'
 import BullpenTab from './BullpenTab'
 import TeamsTab from './TeamsTab'
-import TabPlaceholder from './TabPlaceholder'
+import WeatherTab from './WeatherTab'
 import GameCenter from '@/pages/GameCenter'
 import EdgeCenter from '@/pages/EdgeCenter'
 import HitRates from '@/pages/HitRates'
@@ -401,20 +401,7 @@ export default function Dashboard() {
             <TeamsTab loading={loading} query={query} filterSig={filterSig} onResetFilters={reset} registerRules={registerRules} />
           )}
 
-          {tab === 'weather' && (
-            <TabPlaceholder
-              title="Weather & ballpark factors"
-              summary="One card per game: park name and roof state, field dimensions, live conditions, and both a base park factor and a weather-adjusted one — so you can see how much of tonight's number is the park and how much is the air."
-              blockers={[
-                'slate_games.weatherJson exists in db/schema.ts and is never written or read',
-                'No weather provider is wired into the ingest',
-                'Roof state, field dimensions and wind direction have no source',
-              ]}
-              available={[
-                'parkFactor and ballpark are populated for all 30 teams in src/data/mlbTeams.ts and rendered nowhere',
-              ]}
-            />
-          )}
+          {tab === 'weather' && <WeatherTab />}
         </motion.div>
       </AnimatePresence>
 
