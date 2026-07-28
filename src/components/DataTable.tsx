@@ -10,7 +10,7 @@
 
 import { useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
-import { ArrowDown, Download, Gem } from 'lucide-react'
+import { ArrowDown, Download, Gem, UserRound } from 'lucide-react'
 import type { ColumnDef } from '@/lib/columns'
 import { groupSpans } from '@/lib/columns'
 import { deltaPct, deltaTextClass, formatDelta, heatCell } from '@/lib/heat'
@@ -53,6 +53,12 @@ export interface DataTableProps<Row> {
   exportName?: string
   /** Active-rule summary appended to the CSV provenance comment line. */
   exportFilters?: string
+  /**
+   * "Open profile" row action (Step 15) — a trailing icon button per row that
+   * opens the profiler drawer over this table. Player tables only; team-level
+   * tables (Teams, Bullpen) have no player to profile and leave this unset.
+   */
+  onOpenProfile?: (row: Row) => void
 }
 
 interface SortState {
@@ -81,6 +87,7 @@ export default function DataTable<Row>({
   mobileColumns,
   exportName,
   exportFilters,
+  onOpenProfile,
 }: DataTableProps<Row>) {
   const [sort, setSort] = useState<SortState>({
     key: defaultSortKey ?? null,
@@ -229,6 +236,7 @@ export default function DataTable<Row>({
                     {g.group ?? ''}
                   </th>
                 ))}
+                {onOpenProfile && <th className="border-b border-l border-line" aria-hidden />}
               </tr>
             )}
             <tr className="bg-bg-2">
@@ -268,6 +276,9 @@ export default function DataTable<Row>({
                   )}
                 </th>
               ))}
+              {onOpenProfile && (
+                <th scope="col" className="w-12 border-b border-l border-line px-2 py-2" aria-label="Open profile" />
+              )}
             </tr>
           </thead>
           <tbody key={filterSig}>
@@ -364,6 +375,23 @@ export default function DataTable<Row>({
                     </td>
                   )
                 })}
+                {/* Open-profile row action (Step 15) */}
+                {onOpenProfile && (
+                  <td className="border-b border-l border-line px-2 py-3 text-center">
+                    <button
+                      type="button"
+                      aria-label="Open player profile"
+                      title="Open player profile"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        onOpenProfile(row)
+                      }}
+                      className="-m-1.5 inline-flex min-h-10 min-w-10 items-center justify-center rounded-sm p-1.5 text-text-3 transition-colors hover:bg-bg-3 hover:text-sp-indigo"
+                    >
+                      <UserRound size={15} strokeWidth={1.5} />
+                    </button>
+                  </td>
+                )}
               </motion.tr>
             ))}
           </tbody>
@@ -388,6 +416,26 @@ export default function DataTable<Row>({
             {mobileSummary && (
               <span className="data-mono mt-1 block text-[11px] text-text-3">
                 {mobileSummary(row)}
+              </span>
+            )}
+            {onOpenProfile && (
+              <span
+                role="button"
+                tabIndex={0}
+                aria-label="Open player profile"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onOpenProfile(row)
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.stopPropagation()
+                    onOpenProfile(row)
+                  }
+                }}
+                className="data-mono mt-2 inline-flex items-center gap-1 text-[11px] font-medium text-sp-indigo"
+              >
+                <UserRound size={12} strokeWidth={1.5} /> Open profile
               </span>
             )}
             {mobileCols.length > 0 && (

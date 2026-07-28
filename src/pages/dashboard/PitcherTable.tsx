@@ -27,6 +27,7 @@ import { addToAngle, useToast } from './angleStore'
 import PitcherDrawer from './PitcherDrawer'
 import LegendStrip from './Legend'
 import PresetChips from './PresetChips'
+import { useProfileDrawer } from '@/pages/profiler/useProfileDrawer'
 
 export type StatKey = 'era' | 'whip' | 'kPct' | 'bbPct' | 'xwoba'
 
@@ -75,6 +76,9 @@ export default function PitcherTable({
   const [selected, setSelected] = useState<StarterEntry | null>(null)
   const [angleFor, setAngleFor] = useState<string | null>(null)
   const [toast, showToast] = useToast()
+  // Step 15 — "Open profile" row action: the existing profiler drawer over
+  // this table, no route change.
+  const { openProfile, profileDrawer } = useProfileDrawer()
   // Views chip row (Step 2.3). Three states, not two:
   //   undefined → no chip choice, the Market filter's mapping decides
   //   null      → explicitly cleared, overrides Market, all columns show
@@ -247,6 +251,7 @@ export default function PitcherTable({
         loading={loading}
         filterSig={`${filterSig}:${JSON.stringify(rules)}`}
         onRowClick={(r) => setSelected(r)}
+        onOpenProfile={(r) => openProfile(r.pitcher.id)}
         onResetFilters={handleReset}
         emptyLabel={
           rules.length > 0
@@ -276,6 +281,7 @@ export default function PitcherTable({
         onClose={() => setSelected(null)}
         onToast={showToast}
       />
+      {profileDrawer}
       <Toast message={toast} />
     </div>
   )

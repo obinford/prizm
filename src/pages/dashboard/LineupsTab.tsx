@@ -39,6 +39,7 @@ import { windowSubset } from './utils'
 import { AnglePopover, Toast } from './angles'
 import { addToAngle, useToast } from './angleStore'
 import LegendStrip from './Legend'
+import { useProfileDrawer } from '@/pages/profiler/useProfileDrawer'
 import PresetChips from './PresetChips'
 
 /** Local row — the shared BatterRow plus the game it belongs to. */
@@ -268,6 +269,8 @@ export default function LineupsTab({
 }: LineupsTabProps) {
   const [gameFilter, setGameFilter] = useState<string | undefined>(undefined)
   const [selected, setSelected] = useState<LineupRow | null>(null)
+  // Step 15 — "Open profile" row action: the profiler drawer over this table.
+  const { openProfile, profileDrawer } = useProfileDrawer()
   const [angleFor, setAngleFor] = useState<string | null>(null)
   const [toast, showToast] = useToast()
   // Views chip row (Step 2.3). Three states, not two:
@@ -520,6 +523,7 @@ export default function LineupsTab({
         loading={loading}
         filterSig={`${filterSig}:${JSON.stringify(rules)}`}
         onRowClick={(r) => setSelected(r)}
+        onOpenProfile={(r) => openProfile(r.batter.id)}
         onResetFilters={handleReset}
         emptyLabel={
           rules.length > 0
@@ -545,6 +549,7 @@ export default function LineupsTab({
       />
 
       <BatterDrawer row={selected} onClose={() => setSelected(null)} />
+      {profileDrawer}
       <Toast message={toast} />
     </div>
   )

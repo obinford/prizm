@@ -20,6 +20,7 @@ import { BATTER_COLUMNS, batterWindowColumns } from '@/lib/columns/mlbBatters'
 import { getPitcher } from '@/data/mlbPlayers'
 import { getGoalie } from '@/data/nhlPlayers'
 import { deltaTextClass } from '@/lib/heat'
+import { useProfileDrawer } from '@/pages/profiler/useProfileDrawer'
 import { ConfidenceMeter, DeltaChip } from './kit'
 import { saveAngle } from './utils'
 import { getAiReads, getGameAngles } from './content'
@@ -222,6 +223,8 @@ export default function GameDetail({
 }) {
   const reads = useMemo(() => getAiReads(game), [game])
   const angles = useMemo(() => getGameAngles(game), [game])
+  // Step 15 — profile drawer from any matrix row, over the detail view.
+  const { openProfile, profileDrawer } = useProfileDrawer()
 
   const awayStarter = game.awayProbableId
     ? game.sport === 'mlb'
@@ -413,6 +416,7 @@ export default function GameDetail({
                 rowKey={(r) => r.batter.id}
                 emptyLabel="No batters available for this game"
                 provenance="Recent splits matrix — L30 to L120 PA"
+                onOpenProfile={(r) => openProfile(r.batter.id)}
                 mobileTitle={(r) => r.batter.name}
                 mobileSummary={(r) =>
                   `${r.batter.team} · ${r.batter.pos} · AVG ${r.batter.avg.toFixed(3)}`
@@ -480,6 +484,8 @@ export default function GameDetail({
         {/* S4 — Related rail */}
         <RelatedRail game={game} onSelect={onSelect} />
       </div>
+
+      {profileDrawer}
     </div>
   )
 }

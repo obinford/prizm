@@ -1,11 +1,12 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router'
 import { AnimatePresence } from 'framer-motion'
 import { Search } from 'lucide-react'
 import { BATTERS, PITCHERS } from '@/data/mlbPlayers'
 import { GOALIES, SKATERS } from '@/data/nhlPlayers'
 import { getPlan } from '@/lib/plan'
 import { toggleFollow } from '@/lib/follows'
-import { posLabel } from '@/pages/profiler/derive'
+import { findPlayer, kindOf, posLabel, sportOf } from '@/pages/profiler/derive'
 import ProfilerDrawer from './profiler/Drawer'
 import ProfileCard, { type ProfileKind, type ProfileTarget } from './profiler/ProfileCard'
 import {
@@ -31,6 +32,28 @@ export default function Profiler() {
   const [search, setSearch] = useState('')
   const [team, setTeam] = useState('All')
   const [drawer, setDrawer] = useState<ProfileTarget | null>(null)
+  const [searchParams, setSearchParams] = useSearchParams()
+
+  // Deep link: /profiler?player=<id> opens that player's drawer directly.
+  // Row-level "Open profile" actions across the app rely on this param.
+  useEffect(() => {
+    const id = searchParams.get('player')
+    if (!id) return
+    const p = findPlayer(id)
+    if (!p) return
+    setSport(sportOf(p))
+    setDrawer({ kind: kindOf(p), player: p })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams])
+
+  const closeDrawer = () => {
+    setDrawer(null)
+    if (searchParams.has('player')) {
+      const next = new URLSearchParams(searchParams)
+      next.delete('player')
+      setSearchParams(next, { replace: true })
+    }
+  }
 
   const pool = sport === 'mlb' ? MLB_PLAYERS : NHL_PLAYERS
   const teams = useMemo(
@@ -156,7 +179,7 @@ export default function Profiler() {
           <ProfilerDrawer
             key={drawer.player.id}
             target={drawer}
-            onClose={() => setDrawer(null)}
+            onClose={closeDrawer}
             onFollow={() => followTarget(drawer)}
           />
         )}

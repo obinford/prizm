@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react'
-import { Link } from 'react-router'
 import { AnimatePresence, motion } from 'framer-motion'
-import { ArrowDown, ArrowUp, Bookmark, Check, Columns3, X, Zap } from 'lucide-react'
+import { ArrowDown, ArrowUp, Bookmark, Check, Columns3, UserRound, X, Zap } from 'lucide-react'
 import type { HitWindow, PropLine, PropSide } from '@/data/props'
 import {
   HIT_WINDOWS,
@@ -18,6 +17,7 @@ import {
 } from '@/data/props'
 import { addAngle, propSnapshot } from '@/pages/angles/store'
 import { MARKET_ICONS } from '@/pages/hit-rates/ScannerControls'
+import { useProfileDrawer } from '@/pages/profiler/useProfileDrawer'
 
 export type SortDir = 'asc' | 'desc'
 
@@ -220,7 +220,19 @@ function EdgeCell({
 // Drawer
 // ---------------------------------------------------------------------------
 
-function PropDrawer({ prop, side, onClose }: { prop: PropLine; side: PropSide; onClose: () => void }) {
+function PropDrawer({
+  prop,
+  side,
+  onClose,
+  onOpenProfile,
+}: {
+  prop: PropLine
+  side: PropSide
+  onClose: () => void
+  /** Step 15 — opens the profiler drawer over the table (replaces the old
+   *  /profiler link that carried no player param). */
+  onOpenProfile: () => void
+}) {
   const [added, setAdded] = useState(false)
   // Real per-game outcomes from game_logs (propsRouter.recentValues), compared
   // against the actual line on the ACTIVE side (a push is neither a hit nor a
@@ -390,12 +402,13 @@ function PropDrawer({ prop, side, onClose }: { prop: PropLine; side: PropSide; o
         )}
 
         <div className="flex items-center gap-2">
-          <Link
-            to="/profiler"
+          <button
+            type="button"
+            onClick={onOpenProfile}
             className="flex-1 rounded-md border border-line bg-bg-2 px-4 py-2.5 text-center text-sm font-medium text-text-1 transition-colors hover:bg-bg-3"
           >
-            Open in Profiler →
-          </Link>
+            Open profile →
+          </button>
           <button
             type="button"
             onClick={() => {
@@ -467,6 +480,8 @@ export default function ResultsTable({
   teaser = false,
 }: ResultsTableProps) {
   const [drawerProp, setDrawerProp] = useState<PropLine | null>(null)
+  // Step 15 — "Open profile" row action: the profiler drawer over this table.
+  const { openProfile, profileDrawer } = useProfileDrawer()
   const [hiddenCols, setHiddenCols] = useState<ReadonlySet<ToggleableCol>>(new Set())
   const [colsOpen, setColsOpen] = useState(false)
   const showCol = (c: ToggleableCol) => !hiddenCols.has(c)
@@ -542,21 +557,35 @@ export default function ResultsTable({
       <td className="border-b border-l border-line px-4 py-3 text-center">
         <EdgeCell prop={p} side={side} edgeWindow={edgeWindow} rowIndex={i} />
       </td>
-      {/* Bookmark */}
+      {/* Row actions — profile drawer + bookmark */}
       <td className="border-b border-l border-line px-3 py-3 text-center">
-        <button
-          type="button"
-          aria-label={`Add ${p.player} ${p.market} to angles`}
-          onClick={(e) => {
-            e.stopPropagation()
-            onBookmark(p)
-          }}
-          className={`-m-1.5 flex min-h-10 min-w-10 items-center justify-center rounded-sm p-1.5 transition-colors ${
-            bookmarked.has(p.id) ? 'text-sp-magenta' : 'text-text-3 hover:bg-bg-3 hover:text-text-1'
-          }`}
-        >
-          {bookmarked.has(p.id) ? <Check size={15} /> : <Bookmark size={15} strokeWidth={1.5} />}
-        </button>
+        <div className="flex items-center justify-center">
+          <button
+            type="button"
+            aria-label={`Open ${p.player} profile`}
+            title="Open player profile"
+            onClick={(e) => {
+              e.stopPropagation()
+              openProfile(p.playerId)
+            }}
+            className="-m-1.5 flex min-h-10 min-w-10 items-center justify-center rounded-sm p-1.5 text-text-3 transition-colors hover:bg-bg-3 hover:text-sp-indigo"
+          >
+            <UserRound size={15} strokeWidth={1.5} />
+          </button>
+          <button
+            type="button"
+            aria-label={`Add ${p.player} ${p.market} to angles`}
+            onClick={(e) => {
+              e.stopPropagation()
+              onBookmark(p)
+            }}
+            className={`-m-1.5 flex min-h-10 min-w-10 items-center justify-center rounded-sm p-1.5 transition-colors ${
+              bookmarked.has(p.id) ? 'text-sp-magenta' : 'text-text-3 hover:bg-bg-3 hover:text-text-1'
+            }`}
+          >
+            {bookmarked.has(p.id) ? <Check size={15} /> : <Bookmark size={15} strokeWidth={1.5} />}
+          </button>
+        </div>
       </td>
     </>
   )
@@ -641,7 +670,7 @@ export default function ResultsTable({
               >
                 Edge · {edgeWindow}
               </th>
-              <th scope="col" className="w-12 border-b border-l border-line px-3 py-2.5" aria-label="Save" />
+              <th scope="col" className="w-20 border-b border-l border-line px-3 py-2.5" aria-label="Row actions" />
             </tr>
           </thead>
           <tbody>
@@ -689,6 +718,19 @@ export default function ResultsTable({
                 </div>
                 <div className="flex items-center gap-2">
                   {p.priceAlert && <ValueBadge rowIndex={i} />}
+                  <span
+                    role="button"
+                    tabIndex={0}
+                    aria-label="Open profile"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      openProfile(p.playerId)
+                    }}
+                    onKeyDown={(e) => e.key === 'Enter' && openProfile(p.playerId)}
+                    className="-m-1 flex min-h-10 min-w-10 items-center justify-center rounded-sm p-1 text-text-3"
+                  >
+                    <UserRound size={15} strokeWidth={1.5} />
+                  </span>
                   <span
                     role="button"
                     tabIndex={0}
@@ -746,8 +788,20 @@ export default function ResultsTable({
 
       {/* Drawer */}
       <AnimatePresence>
-        {drawerProp && <PropDrawer prop={drawerProp} side={side} onClose={() => setDrawerProp(null)} />}
+        {drawerProp && (
+          <PropDrawer
+            prop={drawerProp}
+            side={side}
+            onClose={() => setDrawerProp(null)}
+            onOpenProfile={() => {
+              const p = drawerProp
+              setDrawerProp(null)
+              if (p) openProfile(p.playerId)
+            }}
+          />
+        )}
       </AnimatePresence>
+      {profileDrawer}
     </div>
   )
 }
