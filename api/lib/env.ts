@@ -1,11 +1,42 @@
 import "dotenv/config";
 
-function required(name: string): string {
-  const value = process.env[name];
-  if (!value && process.env.NODE_ENV === "production") {
-    throw new Error(`Missing required environment variable: ${name}`);
-  }
-  return value ?? "";
+// Boot-time validation, every environment. Previously a missing variable
+// silently became "" in development and surfaced much later as something
+// unhelpful — e.g. an empty KIMI_AUTH_URL crashed inside `new URL()` with
+// "Invalid URL" and no mention of which value was unset.
+//
+// The check collects ALL missing required variables and throws once with the
+// full list, so a first run prints everything that is needed instead of one
+// variable per restart.
+//
+// Required: DATABASE_URL and the Kimi auth set are required for the
+// dashboard; the Supabase pair is required too — every data route (sv_odds,
+// sv_stat_cache, sv_slate) reads the warehouse, so booting without it just
+// defers a guaranteed failure to the first query.
+// Optional: OWNER_UNION_ID (admin bootstrap) and BALLPARKPAL_API_KEY (the
+// Weather tab degrades without it) never block boot.
+const REQUIRED = [
+  "DATABASE_URL",
+  "SUPABASE_URL",
+  "SUPABASE_ANON_KEY",
+  "KIMI_AUTH_URL",
+  "KIMI_OPEN_URL",
+  "APP_ID",
+  "APP_SECRET",
+] as const;
+
+const missing = REQUIRED.filter((name) => !process.env[name]);
+if (missing.length > 0) {
+  throw new Error(
+    `Missing required environment variable${missing.length === 1 ? "" : "s"}:\n` +
+      missing.map((name) => `  - ${name}`).join("\n") +
+      `\n\nCopy .env.example to .env and fill in every value, then restart.`,
+  );
+}
+
+function required(name: (typeof REQUIRED)[number]): string {
+  // Guaranteed present — the boot check above threw otherwise.
+  return process.env[name] as string;
 }
 
 export const env = {
