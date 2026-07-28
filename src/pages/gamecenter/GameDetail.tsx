@@ -11,6 +11,7 @@ import {
 } from '@/data/mlbPlayers'
 import { getSkaters, NHL_WINDOW_KEYS, NHL_WINDOW_LABELS, type Skater } from '@/data/nhlPlayers'
 import { PROPS, formatOdds } from '@/data/props'
+import { trpc } from '@/providers/trpc'
 import SplitTable, { type SplitPlayer } from '@/components/SplitTable'
 import DataTable from '@/components/DataTable'
 import type { ColumnDef } from '@/lib/columns'
@@ -96,7 +97,17 @@ const MLB_MATRIX_COLUMNS: ColumnDef<BatterRow>[] = [
     minWidth: 170,
     render: (r) => (
       <>
-        <span className="block text-sm font-semibold text-text-1">{r.batter.name}</span>
+        <span className="flex items-center gap-2 text-sm font-semibold text-text-1">
+          {r.battingOrder != null && (
+            <span
+              className="data-mono flex h-5 w-5 shrink-0 items-center justify-center rounded-sm bg-bg-3 text-[10px] font-bold text-text-2"
+              title="Official batting-order spot"
+            >
+              {r.battingOrder}
+            </span>
+          )}
+          {r.batter.name}
+        </span>
         <span className="data-mono block text-[11px] text-text-3">
           {r.batter.team} · {r.batter.pos}
         </span>
@@ -233,12 +244,37 @@ export default function GameDetail({
       : undefined
     : undefined
 
+  // Step 6/13 — tonight's posted lineups (keyless statsapi schedule feed).
+  // Posted → the matrix renders the full 9-man order per team, in order.
+  // Not posted → the honest top-3 fallback below, labelled as such.
+  const lineupsQuery = trpc.lineups.today.useQuery(undefined, { staleTime: 5 * 60_000, retry: 1 })
+  const lineups = lineupsQuery.data
+  const lineupPosted =
+    game.sport === 'mlb' &&
+    (((game.gamePk != null && lineups?.postedGamePks.includes(game.gamePk)) ?? false) ||
+      (lineups?.lineupsPostedFor ?? []).includes(game.id))
+
   const mlbMatrixRows: BatterRow[] = useMemo(() => {
     if (game.sport !== 'mlb') return []
+    if (lineupPosted && lineups?.slugs) {
+      // Full batting order, 1–9, per team. Batters on Prizm's list but not in
+      // the feed (call-ups, late scratches) are omitted — never re-ordered by
+      // guessing. A spot the feed sent that Prizm has no batter for is skipped
+      // by the same rule.
+      const inOrder = (team: string): BatterRow[] =>
+        getTeamBatters(team)
+          .map((batter) => ({
+            batter,
+            battingOrder: lineups.slugs[batter.id]?.battingOrder ?? null,
+          }))
+          .filter((r) => r.battingOrder != null)
+          .sort((a, b) => (a.battingOrder ?? 0) - (b.battingOrder ?? 0))
+      return [...inOrder(game.away), ...inOrder(game.home)]
+    }
     return [...getTeamBatters(game.home).slice(0, 3), ...getTeamBatters(game.away).slice(0, 3)].map(
       (batter) => ({ batter }),
     )
-  }, [game])
+  }, [game, lineupPosted, lineups])
 
   const nhlMatrixPlayers: SplitPlayer[] = useMemo(() => {
     if (game.sport !== 'nhl') return []
@@ -253,10 +289,11 @@ export default function GameDetail({
   // section rather than filling it with invented career lines.
   const historyChips: string[] = []
 
-  const starterChip = (name?: string, line?: string) =>
+  const starterChip = (name?: string, line?: string, hand?: 'L' | 'R' | null) =>
     name ? (
       <span className="flex items-center gap-2 text-sm text-text-2">
         {name}
+        {hand && <span className="data-mono text-[11px] font-semibold text-text-1">({hand}HP)</span>}
         {line && (
           <span className="data-mono rounded-sm bg-bg-2 px-1.5 py-0.5 text-[11px] text-text-1">{line}</span>
         )}
@@ -296,8 +333,16 @@ export default function GameDetail({
                 <div className="mt-2 flex flex-wrap items-center gap-x-5 gap-y-1.5">
                   {game.sport === 'mlb' ? (
                     <>
-                      {starterChip(awayStarter?.name ?? game.awayProbable, awayStarter ? `${awayStarter.era.toFixed(2)} ERA` : undefined)}
-                      {starterChip(homeStarter?.name ?? game.homeProbable, homeStarter ? `${homeStarter.era.toFixed(2)} ERA` : undefined)}
+                      {starterChip(
+                        awayStarter?.name ?? game.awayProbable,
+                        awayStarter ? `${awayStarter.era.toFixed(2)} ERA` : undefined,
+                        game.awayProbableHand ?? awayStarter?.throws ?? null,
+                      )}
+                      {starterChip(
+                        homeStarter?.name ?? game.homeProbable,
+                        homeStarter ? `${homeStarter.era.toFixed(2)} ERA` : undefined,
+                        game.homeProbableHand ?? homeStarter?.throws ?? null,
+                      )}
                     </>
                   ) : (
                     <>
@@ -311,8 +356,15 @@ export default function GameDetail({
                 <span className="data-mono rounded-sm border border-line bg-bg-2 px-2.5 py-1.5 text-[12px] text-text-2">
                   {game.venue}
                 </span>
-                <span className="data-mono rounded-sm border border-line bg-bg-2 px-2.5 py-1.5 text-[12px] text-text-2">
-                  O/U {game.total?.toFixed(1)}
+                <span
+                  className="data-mono rounded-sm border border-line bg-bg-2 px-2.5 py-1.5 text-[12px] text-text-2"
+                  title={
+                    game.total == null
+                      ? 'No game-odds feed — sv_odds covers player props only. Moneyline, runline and totals need a game-odds source Prizm has not purchased.'
+                      : undefined
+                  }
+                >
+                  O/U {game.total != null ? game.total.toFixed(1) : '—'}
                 </span>
                 <span className="data-mono rounded-sm border border-line bg-bg-2 px-2.5 py-1.5 text-[12px] text-text-2">
                   {game.startTime}
@@ -331,8 +383,20 @@ export default function GameDetail({
           >
             <div className="mb-3 flex flex-wrap items-center gap-2">
               <p className="overline-caption text-text-3">
-                {game.sport === 'mlb' ? 'Key bats vs the starters' : 'Skaters vs the netminders'}
+                {game.sport === 'mlb'
+                  ? lineupPosted
+                    ? 'Starting lineups vs the starters — official batting order'
+                    : 'Key bats vs the starters'
+                  : 'Skaters vs the netminders'}
               </p>
+              {game.sport === 'mlb' && !lineupPosted && (
+                <span
+                  className="data-mono rounded-sm bg-bg-2 px-2 py-1 text-[11px] text-text-3"
+                  title="MLB teams typically post lineups 3–4 hours before first pitch"
+                >
+                  Lineup not posted yet — the full 9-man order appears here when it is
+                </span>
+              )}
               {historyChips.map((c) => (
                 <span
                   key={c}

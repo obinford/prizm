@@ -6,7 +6,7 @@ import { players, slateGames, teamStats } from "@db/schema";
 import type { SlateGame } from "@contracts/types";
 import { getSavantSlate, type SvSlateRow } from "./supabase/savant";
 
-function etTimeLabel(isoUtc: string): string {
+export function etTimeLabel(isoUtc: string): string {
   // '2026-07-26T16:15:00+00:00' -> '12:15 PM ET'
   try {
     const d = new Date(isoUtc);

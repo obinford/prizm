@@ -70,3 +70,13 @@ export function slateDate(day: SlateDay = current): Date {
   if (day === 'tomorrow') d.setDate(d.getDate() + 1)
   return d
 }
+
+/** YYYY-MM-DD in US Eastern — the date axis the slate/weather feeds use. */
+export function etDateString(day: SlateDay = current): string {
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
+  if (day === 'today') return today
+  // Noon UTC sidesteps DST edges when adding a calendar day.
+  const d = new Date(`${today}T12:00:00Z`)
+  d.setUTCDate(d.getUTCDate() + 1)
+  return d.toISOString().slice(0, 10)
+}

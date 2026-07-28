@@ -5,7 +5,7 @@
 // semantics the UI relies on.
 
 import { describe, expect, it } from 'vitest'
-import { parseScheduleLineups, slug } from './lineupsParse'
+import { parseScheduleGames, parseScheduleLineups, slug } from './lineupsParse'
 
 const player = (id: number, name: string, abbr: string) => ({
   id,
@@ -79,5 +79,32 @@ describe('slug', () => {
     expect(slug('Tarik Skubal')).toBe('tarik-skubal')
     expect(slug('José Ramírez')).toBe('jose-ramirez')
     expect(slug("Jasson Domínguez")).toBe('jasson-dominguez')
+  })
+})
+
+describe('parseScheduleGames', () => {
+  const SCHED_GAME = {
+    gamePk: 823837,
+    gameDate: '2026-07-29T16:10:00Z',
+    venue: { name: 'loanDepot park' },
+    teams: {
+      away: { team: { id: 143 }, probablePitcher: { id: 666200, fullName: 'Jesús Luzardo' } },
+      home: { team: { id: 146 }, probablePitcher: null },
+    },
+  }
+
+  it('keeps games with no posted lineup — probables are the content', () => {
+    const out = parseScheduleGames({ dates: [{ games: [SCHED_GAME] }] })
+    expect(out).toHaveLength(1)
+    expect(out[0].awayProbable).toEqual({ id: 666200, name: 'Jesús Luzardo' })
+    expect(out[0].homeProbable).toBeNull() // unnamed probable → null, never 'TBD' the data didn't send
+    expect(out[0].venue).toBe('loanDepot park')
+    expect(out[0].startUtc).toBe('2026-07-29T16:10:00Z')
+  })
+
+  it('skips entries without a numeric gamePk and tolerates missing dates', () => {
+    expect(parseScheduleGames({ dates: [{ games: [{ teams: {} }] }] })).toEqual([])
+    expect(parseScheduleGames({})).toEqual([])
+    expect(parseScheduleGames(null)).toEqual([])
   })
 })

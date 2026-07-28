@@ -13,8 +13,10 @@ function starterHeadline(game: SlateGame, side: 'away' | 'home'): { name: string
   const name = side === 'away' ? game.awayProbable : game.homeProbable
   if (!id || !name) return { name: 'TBD', line: game.sport === 'mlb' ? 'probable' : 'expected' }
   if (game.sport === 'mlb') {
+    const hand = (side === 'away' ? game.awayProbableHand : game.homeProbableHand) ?? getPitcher(id)?.throws
+    const handSuffix = hand ? ` (${hand}HP)` : ''
     const p = getPitcher(id)
-    return p ? { name: p.name, line: `${p.era.toFixed(2)} ERA` } : { name, line: '' }
+    return p ? { name: `${p.name}${handSuffix}`, line: `${p.era.toFixed(2)} ERA` } : { name: `${name}${handSuffix}`, line: '' }
   }
   const g = getGoalie(id)
   return g ? { name: g.name, line: `.${String(Math.round(g.svPct * 1000))} SV%` } : { name, line: '' }
@@ -98,8 +100,15 @@ export default function GameCard({
           <span className="font-display text-[22px] font-bold text-text-1">{game.away}</span>
           <span className="data-mono text-sm text-text-3">@</span>
           <span className="font-display text-[22px] font-bold text-text-1">{game.home}</span>
-          <span className="data-mono ml-auto rounded-sm bg-bg-2 px-2 py-0.5 text-[11px] text-text-2">
-            O/U {game.total?.toFixed(1)}
+          <span
+            className="data-mono ml-auto rounded-sm bg-bg-2 px-2 py-0.5 text-[11px] text-text-2"
+            title={
+              game.total == null
+                ? 'No game-odds feed — sv_odds covers player props only. Totals need a game-odds source Prizm has not purchased.'
+                : undefined
+            }
+          >
+            O/U {game.total != null ? game.total.toFixed(1) : '—'}
           </span>
         </div>
         <div className="mt-1.5 flex items-center gap-3 text-[12px]">

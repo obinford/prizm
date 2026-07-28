@@ -20,20 +20,10 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { ChevronDown, CloudSun } from 'lucide-react'
 import { trpc } from '@/providers/trpc'
 import { MLB_TEAMS } from '@/data/mlbTeams'
-import { SLATE_DAY_LABEL, useSlateDay, type SlateDay } from '@/lib/slateDay'
+import { SLATE_DAY_LABEL, etDateString, useSlateDay } from '@/lib/slateDay'
 import type { BppGameFactors, BppHitterFactors } from '../../../api/ballparkpal'
 
 const QUERY_OPTS = { staleTime: 5 * 60_000, retry: 1 } as const
-
-/** YYYY-MM-DD in US Eastern — the provider's date axis. */
-function etDateString(day: SlateDay): string {
-  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
-  if (day === 'today') return today
-  // Noon UTC sidesteps DST edges when adding a calendar day.
-  const d = new Date(`${today}T12:00:00Z`)
-  d.setUTCDate(d.getUTCDate() + 1)
-  return d.toISOString().slice(0, 10)
-}
 
 // Verdict words are Prizm display cutoffs chosen for this card, not provider
 // labels. HR: the feed's own per-game amounts sit on a roughly ±0.8 HR

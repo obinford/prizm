@@ -14,6 +14,9 @@ export interface SlateGame {
   homeProbable?: string
   awayProbableId?: string
   homeProbableId?: string
+  /** Probable pitcher's throwing hand, from sv_slate. Null = not announced. */
+  awayProbableHand?: 'L' | 'R' | null
+  homeProbableHand?: 'L' | 'R' | null
   gamePk?: number // MLBAM gamePk from sv_slate
   total?: number // game total line
   note?: string

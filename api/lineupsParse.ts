@@ -87,3 +87,55 @@ export function parseScheduleLineups(json: any, date: string): ParsedLineups {
 
   return { date, orders, postedGamePks, teamsByGamePk }
 }
+
+// ---------------------------------------------------------------------------
+// Schedule games (Tomorrow's slate) — probable pitchers, no lineups needed
+// ---------------------------------------------------------------------------
+
+export interface ParsedScheduleGame {
+  gamePk: number
+  /** ISO UTC start, e.g. '2026-07-29T16:10:00Z'. '' when absent. */
+  startUtc: string
+  venue: string
+  awayTeamId: number | null
+  homeTeamId: number | null
+  /** probablePitcher hydrate carries {id, fullName} only — no pitchHand.
+   *  Hands are therefore NOT available here and must not be guessed. */
+  awayProbable: { id: number; name: string } | null
+  homeProbable: { id: number; name: string } | null
+}
+
+/**
+ * Parse one schedule response into per-game schedule facts. Unlike
+ * parseScheduleLineups this keeps games with no posted lineup — for a future
+ * date that is EVERY game, and the probables are the content.
+ */
+export function parseScheduleGames(json: any): ParsedScheduleGame[] {
+  const out: ParsedScheduleGame[] = []
+  const dates: any[] = Array.isArray(json?.dates) ? json.dates : []
+  for (const d of dates) {
+    const games: any[] = Array.isArray(d?.games) ? d.games : []
+    for (const g of games) {
+      const pk = g?.gamePk
+      if (typeof pk !== "number") continue
+      const prob = (side: any): { id: number; name: string } | null => {
+        const p = side?.probablePitcher
+        return typeof p?.id === "number" && p?.fullName
+          ? { id: p.id, name: String(p.fullName) }
+          : null
+      }
+      const awayTeamId = g?.teams?.away?.team?.id
+      const homeTeamId = g?.teams?.home?.team?.id
+      out.push({
+        gamePk: pk,
+        startUtc: typeof g?.gameDate === "string" ? g.gameDate : "",
+        venue: String(g?.venue?.name ?? ""),
+        awayTeamId: typeof awayTeamId === "number" ? awayTeamId : null,
+        homeTeamId: typeof homeTeamId === "number" ? homeTeamId : null,
+        awayProbable: prob(g?.teams?.away),
+        homeProbable: prob(g?.teams?.home),
+      })
+    }
+  }
+  return out
+}

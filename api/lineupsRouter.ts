@@ -11,27 +11,44 @@
 // and contributes nothing. Never write a batting order the feed did not send.
 
 import { createRouter, publicQuery } from "./middleware";
-import { parseScheduleLineups, type ParsedLineups } from "./lineupsParse";
+import { z } from "zod";
+import { parseScheduleGames, parseScheduleLineups, type ParsedLineups } from "./lineupsParse";
 import { TEAM_ID_TO_ABBR } from "./supabase/savant";
+import { etTimeLabel } from "./slateRouter";
 
 const CACHE_TTL_MS = 5 * 60_000;
 let cache: { at: number; parsed: ParsedLineups } | null = null;
+
+/** Schedule facts (probables) per date — same feed, same 5-minute cadence. */
+const scheduleCache = new Map<string, { at: number; games: ReturnType<typeof parseScheduleGames> }>();
 
 function todayEt(): string {
   return new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
 }
 
-async function getLineups(): Promise<ParsedLineups> {
-  if (cache && Date.now() - cache.at < CACHE_TTL_MS) return cache.parsed;
-  const date = todayEt();
-  const url = `https://statsapi.mlb.com/api/v1/schedule?sportId=1&date=${date}&hydrate=lineups,probablePitcher`;
+async function fetchSchedule(date: string, hydrate: string): Promise<any> {
+  const url = `https://statsapi.mlb.com/api/v1/schedule?sportId=1&date=${date}&hydrate=${hydrate}`;
   const res = await fetch(url, {
     headers: { "user-agent": "prizm/1.0", accept: "application/json" },
   });
   if (!res.ok) throw new Error(`HTTP ${res.status} from statsapi schedule`);
-  const parsed = parseScheduleLineups(await res.json(), date);
+  return res.json();
+}
+
+async function getLineups(): Promise<ParsedLineups> {
+  if (cache && Date.now() - cache.at < CACHE_TTL_MS) return cache.parsed;
+  const date = todayEt();
+  const parsed = parseScheduleLineups(await fetchSchedule(date, "lineups,probablePitcher"), date);
   cache = { at: Date.now(), parsed };
   return parsed;
+}
+
+async function getScheduleGames(date: string): Promise<ReturnType<typeof parseScheduleGames>> {
+  const hit = scheduleCache.get(date);
+  if (hit && Date.now() - hit.at < CACHE_TTL_MS) return hit.games;
+  const games = parseScheduleGames(await fetchSchedule(date, "probablePitcher"));
+  scheduleCache.set(date, { at: Date.now(), games });
+  return games;
 }
 
 export const lineupsRouter = createRouter({
@@ -71,4 +88,28 @@ export const lineupsRouter = createRouter({
 
     return { date, lineupsPostedFor, postedGamePks, unmatchedGamePks, orders: byMlbam, slugs: bySlug };
   }),
+
+  /**
+   * Schedule facts for any date (the Tomorrow view): teams, start, venue and
+   * named probables. Keyless feed, cached 5 minutes, never warehoused.
+   *
+   * Probable hands are NOT in this hydrate (probablePitcher carries id +
+   * fullName only), so this route returns names and nothing else — the
+   * client must not decorate tomorrow's probables with today's hand data.
+   * An unmapped statsapi team id yields a null abbr, never a guessed one.
+   */
+  schedule: publicQuery
+    .input(z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }))
+    .query(async ({ input }) => {
+      const games = await getScheduleGames(input.date);
+      return games.map((g) => ({
+        gamePk: g.gamePk,
+        startTime: etTimeLabel(g.startUtc),
+        venue: g.venue,
+        away: g.awayTeamId != null ? (TEAM_ID_TO_ABBR[g.awayTeamId] ?? null) : null,
+        home: g.homeTeamId != null ? (TEAM_ID_TO_ABBR[g.homeTeamId] ?? null) : null,
+        awayProbable: g.awayProbable?.name ?? null,
+        homeProbable: g.homeProbable?.name ?? null,
+      }));
+    }),
 });

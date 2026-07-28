@@ -3,18 +3,25 @@ import { Link, useSearchParams } from 'react-router'
 import { LayoutGrid, List, Lock } from 'lucide-react'
 import { getGame, getSlate } from '@/data/slate'
 import { getPlan } from '@/lib/plan'
+import { SLATE_DAY_LABEL, useSlateDay } from '@/lib/slateDay'
 import GameCard from './gamecenter/GameCard'
 import GameDetail from './gamecenter/GameDetail'
+import TomorrowSlate from './gamecenter/TomorrowSlate'
 import { ToastViewport } from './gamecenter/kit'
 
 /**
  * GameCenter (/gamecenter) — per-game AI-style matchup breakdowns.
  * Gated: All Access (Dashboards plan sees the upgrade wall).
+ *
+ * Follows the topbar Today/Tomorrow stepper. Tomorrow has no hydrated slate,
+ * so it renders schedule facts + weather (TomorrowSlate) with an honest
+ * placeholder where analysis would go — never today's numbers redated.
  */
 export default function GameCenter() {
   const [sport, setSport] = useState<'mlb' | 'nhl'>('mlb')
   const [view, setView] = useState<'grid' | 'list'>('grid')
   const [searchParams, setSearchParams] = useSearchParams()
+  const day = useSlateDay()
 
   const selectedId = searchParams.get('game')
   const selected = selectedId ? getGame(selectedId) : undefined
@@ -33,8 +40,11 @@ export default function GameCenter() {
       {/* S1 — Page header row */}
       <div className="mb-6 flex flex-wrap items-center gap-3">
         <h2 className="font-display text-2xl font-semibold tracking-[-0.01em] text-text-1">
-          Tonight&apos;s matchups
+          {day === 'tomorrow' ? "Tomorrow's matchups" : "Tonight's matchups"}
         </h2>
+        <span className="data-mono rounded-sm border border-line bg-bg-2 px-2 py-1 text-[11px] text-text-2">
+          {SLATE_DAY_LABEL[day]}
+        </span>
         <div className="ml-auto flex items-center gap-2">
           {/* Sport toggle */}
           <div className="flex rounded-md bg-bg-2 p-1">
@@ -106,6 +116,16 @@ export default function GameCenter() {
             </div>
           </div>
         </div>
+      ) : day === 'tomorrow' ? (
+        /* Tomorrow — schedule facts + weather; analysis honestly absent */
+        sport === 'mlb' ? (
+          <TomorrowSlate />
+        ) : (
+          <div className="prizm-card p-8 text-[13px] leading-relaxed text-text-3">
+            Tomorrow's NHL slate is not carried — the NHL slate comes from the warehouse, which
+            ingests the current day only. Step back to Today for tonight's games.
+          </div>
+        )
       ) : selected ? (
         /* S3 — Detail drill-in (same route, ?game=<id>) */
         <GameDetail game={selected} onBack={clearGame} onSelect={selectGame} />
