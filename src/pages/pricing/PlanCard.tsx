@@ -6,7 +6,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { Check } from 'lucide-react'
 import DigitRoll from '@/pages/pricing/DigitRoll'
 import Magnetic from '@/pages/pricing/Magnetic'
-import { fmtUsd, monthlyEquivalent, type Plan } from '@/pages/pricing/plans'
+import { fmtUsd, monthlyEquivalent, savingsPct, type Plan } from '@/pages/pricing/plans'
 
 interface Props {
   plan: Plan
@@ -57,6 +57,11 @@ export default function PlanCard({ plan, annual, highlight }: Props) {
           </motion.span>
         </AnimatePresence>
         <span className="text-sm text-text-3">/mo{annual ? ' · billed annually' : ''}</span>
+        {annual && (
+          <span className="data-mono rounded-sm bg-sp-amber/15 px-1.5 py-0.5 text-[10px] font-semibold text-sp-amber">
+            save {savingsPct(plan)}%
+          </span>
+        )}
       </p>
 
       <ul className="mt-6 flex-1 space-y-2.5">

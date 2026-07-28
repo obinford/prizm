@@ -3,7 +3,7 @@ import { Link } from 'react-router'
 import { AnimatePresence, motion } from 'framer-motion'
 import { ChevronDown, Gem } from 'lucide-react'
 import ComparisonTable from '@/pages/pricing/ComparisonTable'
-import { PLANS } from '@/pages/pricing/plans'
+import { PLANS, minSavingsPct } from '@/pages/pricing/plans'
 import PlanCard from '@/pages/pricing/PlanCard'
 
 const EASE: [number, number, number, number] = [0.16, 1, 0.3, 1]
@@ -27,9 +27,11 @@ export default function Pricing() {
   const [annual, setAnnual] = useState(false)
   const [openFaq, setOpenFaq] = useState<number | null>(null)
 
-  const monthlyTotal = PLANS.reduce((s, p) => s + p.monthlyPrice, 0)
-  const annualTotal = PLANS.reduce((s, p) => s + p.annualTotal, 0)
-  const savings = Math.round((1 - annualTotal / (monthlyTotal * 12)) * 100)
+  // Headline discount for the cadence toggle: the MINIMUM saving across
+  // plans, phrased as a floor ("save 20%+") — conservative for every reader
+  // and consistent with the homepage badge. A blended average describes a
+  // customer who buys both plans and therefore does not exist; per-plan
+  // figures render on each PlanCard via savingsPct(plan).
 
   return (
     <div className="bg-bg-0">
@@ -110,7 +112,7 @@ export default function Pricing() {
                     <span className="relative">{label}</span>
                     {isAnnual && (
                       <span className="data-mono relative rounded-sm bg-sp-amber/15 px-1.5 py-0.5 text-[10px] font-semibold text-sp-amber">
-                        save {savings}%
+                        save {minSavingsPct()}%+
                       </span>
                     )}
                   </button>

@@ -34,29 +34,64 @@ describe('plan pricing', () => {
   })
 
   it('no price literal exists outside plans.ts', () => {
-    const srcDir = join(__dirname, '..', '..')
-    const offenders: string[] = []
-
-    const scan = (dir: string) => {
-      for (const entry of readdirSync(dir, { withFileTypes: true })) {
-        const path = join(dir, entry.name)
-        if (entry.isDirectory()) {
-          scan(path)
-          continue
-        }
-        if (!/\.(ts|tsx)$/.test(entry.name)) continue
-        if (entry.name === 'plans.ts') continue // the source of truth itself
-        if (/\.test\.(ts|tsx)$/.test(entry.name)) continue // fixtures may quote prices
-        const text = readFileSync(path, 'utf8')
-        // USD display literals like $12.99 ("$0 today" has no decimals — not a plan price)
-        if (/\$\d+\.\d{2}/.test(text)) offenders.push(`${path}: USD literal`)
-        // known plan-price numbers in any form (stale local PLANS copies, etc.)
-        if (/\b(12\.99|24\.99|9\.99|19\.99|149\.99|249\.99|119\.88|239\.88)\b/.test(text)) {
-          offenders.push(`${path}: plan-price numeric`)
-        }
-      }
-    }
-    scan(srcDir)
+    const offenders = scanForOffenders()
     expect(offenders, `price literals outside plans.ts:\n${offenders.join('\n')}`).toEqual([])
   })
+
+  it('no savings arithmetic exists outside plans.ts', () => {
+    // The literal guard catches quoted prices; it does NOT catch a price
+    // CALCULATION — which is how a blended "save 21%" (true of nobody)
+    // survived Fix 5 on the Pricing page. All savings math lives in plans.ts
+    // (savingsPct / minSavingsPct). Heuristic, line-based: flag direct
+    // arithmetic on the price fields, or aggregation over them.
+    const offenders: string[] = []
+    for (const path of sourceFiles()) {
+      readFileSync(path, 'utf8')
+        .split('\n')
+        .forEach((line, i) => {
+          if (/\.(annualTotal|monthlyPrice)\s*[*/]/.test(line)) {
+            offenders.push(`${path}:${i + 1}: arithmetic on a price field`)
+          }
+          if (/\.reduce\([^)]*\.(annualTotal|monthlyPrice)/.test(line)) {
+            offenders.push(`${path}:${i + 1}: aggregation over price fields`)
+          }
+        })
+    }
+    expect(offenders, `savings arithmetic outside plans.ts:\n${offenders.join('\n')}`).toEqual([])
+  })
 })
+
+/** All client source files except the source of truth and test fixtures. */
+function sourceFiles(): string[] {
+  const out: string[] = []
+  const walk = (dir: string) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const path = join(dir, entry.name)
+      if (entry.isDirectory()) {
+        walk(path)
+      } else if (
+        /\.(ts|tsx)$/.test(entry.name) &&
+        entry.name !== 'plans.ts' &&
+        !/\.test\.(ts|tsx)$/.test(entry.name)
+      ) {
+        out.push(path)
+      }
+    }
+  }
+  walk(join(__dirname, '..', '..'))
+  return out
+}
+
+function scanForOffenders(): string[] {
+  const offenders: string[] = []
+  for (const path of sourceFiles()) {
+    const text = readFileSync(path, 'utf8')
+    // USD display literals like $12.99 ("$0 today" has no decimals — not a plan price)
+    if (/\$\d+\.\d{2}/.test(text)) offenders.push(`${path}: USD literal`)
+    // known plan-price numbers in any form (stale local PLANS copies, etc.)
+    if (/\b(12\.99|24\.99|9\.99|19\.99|149\.99|249\.99|119\.88|239\.88)\b/.test(text)) {
+      offenders.push(`${path}: plan-price numeric`)
+    }
+  }
+  return offenders
+}
