@@ -177,12 +177,47 @@ export default function Dashboard() {
   const rulesApiRef = useRef<{ rules: FilterRule[]; apply: (r: FilterRule[]) => void } | null>(
     null,
   )
+  // Step 11.3 — /dashboard?tab=<tab>&rules=<json> from the EdgeCenter Filter
+  // Library. The rules are applied through the SAME bridge the Views menu
+  // uses, at the moment the target tab registers. Consumed once.
+  const pendingRulesRef = useRef<FilterRule[] | null>(null)
   const registerRules = useCallback(
     (api: { rules: FilterRule[]; apply: (r: FilterRule[]) => void } | null) => {
       rulesApiRef.current = api
+      if (api && pendingRulesRef.current) {
+        const pending = pendingRulesRef.current
+        pendingRulesRef.current = null
+        api.apply(pending)
+      }
     },
     [],
   )
+
+  // Tab/view deep links must also work while Dashboard stays mounted (the
+  // Filter Library links from the Edgecenter tab change only the search
+  // params). The useState initializers above cover cold loads only.
+  const [lastParamTab, setLastParamTab] = useState(paramTab)
+  if (lastParamTab !== paramTab) {
+    setLastParamTab(paramTab)
+    if (paramTab && TABS.some((t) => t.key === paramTab)) setTab(paramTab)
+    if (paramView === 'hitrates') setViewMode('hitrates')
+  }
+  // Parse the rules param during render, not in an effect: child effects
+  // (the tab's bridge registration) run before this component's effects, so
+  // an effect would set the pending rules after they were already needed.
+  const rawRules = params.get('rules')
+  const lastRawRulesRef = useRef<string | null>(null)
+  if (rawRules && rawRules !== lastRawRulesRef.current) {
+    lastRawRulesRef.current = rawRules
+    try {
+      const parsed = JSON.parse(rawRules) as FilterRule[]
+      if (Array.isArray(parsed) && parsed.every((r) => r && typeof r.columnKey === 'string')) {
+        pendingRulesRef.current = parsed
+      }
+    } catch {
+      // A malformed rules param is ignored, never guessed at.
+    }
+  }
 
   // Skeleton shimmer 500ms on route/tab enter, then rows stagger in (§S5).
   // Reset during render when the tab changes (React-sanctioned pattern),

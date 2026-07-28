@@ -21,7 +21,7 @@ import { ChevronDown, CloudSun } from 'lucide-react'
 import { trpc } from '@/providers/trpc'
 import { MLB_TEAMS } from '@/data/mlbTeams'
 import { SLATE_DAY_LABEL, useSlateDay, type SlateDay } from '@/lib/slateDay'
-import type { BppGameFactors, BppHitterFactors } from '../../../api/weatherRouter'
+import type { BppGameFactors, BppHitterFactors } from '../../../api/ballparkpal'
 
 const QUERY_OPTS = { staleTime: 5 * 60_000, retry: 1 } as const
 

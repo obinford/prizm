@@ -9,6 +9,10 @@ import { getPlan, onPlanChange } from '@/lib/plan'
 import { getFollowedIds, onFollowsChange } from '@/lib/follows'
 import { DeltaChip, EdgeGauge, SportChip, ToastViewport } from './gamecenter/kit'
 import { hitRateTint, saveAngle, toast } from './gamecenter/utils'
+import QuickAlerts from './edgecenter/QuickAlerts'
+import HotCold from './edgecenter/HotCold'
+import FilterLibrary from './edgecenter/FilterLibrary'
+import Watchlist from './edgecenter/Watchlist'
 
 // ---------------------------------------------------------------------------
 // Content helpers
@@ -370,6 +374,12 @@ export default function EdgeCenter() {
         </p>
       </motion.div>
 
+      {/* Step 11.1 — schedule-derived situation alerts */}
+      <QuickAlerts />
+
+      {/* Step 11.4 — CI-clearing edges, before the ranked list they outrank */}
+      <Watchlist />
+
       {/* S5 — Followed players band */}
       <section className="mb-10">
         <p className="overline-caption mb-3 text-text-3">From your follows</p>
@@ -482,6 +492,12 @@ export default function EdgeCenter() {
           </section>
         </>
       )}
+
+      {/* Step 11.2 — both sides of tonight's matchups */}
+      <HotCold />
+
+      {/* Step 11.3 — saved rule sets with live counts */}
+      <FilterLibrary />
 
       {/* S7 — Results tracking.
           The previous version of this footer rendered a hardcoded 3-2 record and
