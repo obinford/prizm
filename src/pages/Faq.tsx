@@ -3,6 +3,11 @@ import { Link } from 'react-router'
 import { AnimatePresence, motion } from 'framer-motion'
 import { ArrowRight, Gem, Search } from 'lucide-react'
 import FaqItem from '@/pages/faq/FaqItem'
+import { fmtUsd, planById } from '@/pages/pricing/plans'
+
+// Plan prices interpolated from the single source of truth (pricing/plans.ts).
+const DASHBOARDS = planById('dashboards')
+const ALL_ACCESS = planById('allaccess')
 
 const EASE: [number, number, number, number] = [0.16, 1, 0.3, 1]
 
@@ -44,7 +49,7 @@ const FAQS: FaqEntry[] = [
   {
     category: 'Plans & billing',
     q: "What's the difference between plans?",
-    a: 'Dashboards Only ($12.99/mo, $149.99/yr) is the split tables for both sports. All Access ($24.99/mo, $249.99/yr) adds Hit Rates, Profiler, GameCenter, EdgeCenter, and My Angles.',
+    a: `Dashboards Only (${fmtUsd(DASHBOARDS.monthlyPrice)}/mo, ${fmtUsd(DASHBOARDS.annualTotal)}/yr) is the split tables for both sports. All Access (${fmtUsd(ALL_ACCESS.monthlyPrice)}/mo, ${fmtUsd(ALL_ACCESS.annualTotal)}/yr) adds Hit Rates, Profiler, GameCenter, EdgeCenter, and My Angles.`,
   },
   {
     category: 'Plans & billing',

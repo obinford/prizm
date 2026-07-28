@@ -1,6 +1,13 @@
 import { Link } from 'react-router'
 import LegalPage from '@/pages/terms/LegalPage'
 import type { LegalSection } from '@/pages/terms/LegalPage'
+import { fmtUsd, planById } from '@/pages/pricing/plans'
+
+// Plan prices are interpolated from the single source of truth
+// (pricing/plans.ts) — a legal document quoting a hardcoded price that
+// disagrees with checkout is the exact bug this prevents.
+const DASHBOARDS = planById('dashboards')
+const ALL_ACCESS = planById('allaccess')
 
 const SECTIONS: LegalSection[] = [
   {
@@ -66,9 +73,11 @@ const SECTIONS: LegalSection[] = [
     body: (
       <>
         <p>
-          Subscriptions renew automatically on a monthly or annual basis at $12.99/$24.99 per month
-          or $149.99/$249.99 per year, depending on plan, plus applicable taxes. Prices may change
-          with at least 30 days' notice; changes apply to your next renewal.
+          Subscriptions renew automatically on a monthly or annual basis at{' '}
+          {fmtUsd(DASHBOARDS.monthlyPrice)}/{fmtUsd(ALL_ACCESS.monthlyPrice)} per month or{' '}
+          {fmtUsd(DASHBOARDS.annualTotal)}/{fmtUsd(ALL_ACCESS.annualTotal)} per year, depending on
+          plan, plus applicable taxes. Prices may change with at least 30 days' notice; changes
+          apply to your next renewal.
         </p>
         <p>
           Upgrades are prorated immediately; downgrades and cancellations take effect at the end of

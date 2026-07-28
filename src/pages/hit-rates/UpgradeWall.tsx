@@ -2,6 +2,11 @@ import { useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Check, Gem, Zap } from 'lucide-react'
 import { setPlan } from '@/lib/plan'
+import { fmtUsd, monthlyEquivalent, planById, savingsPct } from '@/pages/pricing/plans'
+
+// Price comes from the single source of truth (pricing/plans.ts). This wall
+// once showed $29/$39 — a price that existed on no other page.
+const ALL_ACCESS = planById('allaccess')
 
 /**
  * Upgrade wall (hit-rates.md S4) — shown to `dashboards`-plan users after the
@@ -100,12 +105,12 @@ export default function UpgradeWall({ onUpgraded }: { onUpgraded: () => void }) 
               <div className="mt-4 rounded-md border border-line bg-bg-2 px-4 py-3">
                 <div className="flex items-baseline justify-between">
                   <span className="data-mono text-2xl font-bold text-text-1">
-                    {annual ? '$19.99' : '$24.99'}
+                    {annual ? fmtUsd(monthlyEquivalent(ALL_ACCESS)) : fmtUsd(ALL_ACCESS.monthlyPrice)}
                     <span className="text-sm font-medium text-text-3">/mo{annual ? ' · billed annually' : ''}</span>
                   </span>
                   {annual && (
                     <span className="rounded-sm bg-sp-indigo/20 px-1.5 py-0.5 text-[10px] font-semibold text-sp-indigo">
-                      2 months free
+                      save {savingsPct(ALL_ACCESS)}%
                     </span>
                   )}
                 </div>

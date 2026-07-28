@@ -27,8 +27,8 @@ export default function Pricing() {
   const [annual, setAnnual] = useState(false)
   const [openFaq, setOpenFaq] = useState<number | null>(null)
 
-  const monthlyTotal = PLANS.reduce((s, p) => s + p.monthly, 0)
-  const annualTotal = PLANS.reduce((s, p) => s + p.annual, 0)
+  const monthlyTotal = PLANS.reduce((s, p) => s + p.monthlyPrice, 0)
+  const annualTotal = PLANS.reduce((s, p) => s + p.annualTotal, 0)
   const savings = Math.round((1 - annualTotal / (monthlyTotal * 12)) * 100)
 
   return (

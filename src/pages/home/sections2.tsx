@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router'
 import { AnimatePresence, motion } from 'framer-motion'
+import { PLANS, fmtUsd, fromMonthlyPrice, minSavingsPct, monthlyEquivalent } from '@/pages/pricing/plans'
 
 const EASE = [0.16, 1, 0.3, 1] as [number, number, number, number]
 
@@ -10,24 +11,10 @@ const EASE = [0.16, 1, 0.3, 1] as [number, number, number, number]
 
 // ---------------------------------------------------------------------------
 // S10 — Pricing preview
+// Prices come from the single source of truth (pricing/plans.ts) — a local
+// copy here is how the homepage once advertised a different annual price
+// than checkout charged.
 // ---------------------------------------------------------------------------
-
-const PLANS = [
-  {
-    name: 'Dashboards Only',
-    monthly: 12.99,
-    annual: 9.99,
-    features: ['MLB + NHL split tables', 'Hit Rates scanner', 'Profiler & GameCenter', 'Saved views & filters'],
-    spectrum: false,
-  },
-  {
-    name: 'All Access',
-    monthly: 24.99,
-    annual: 19.99,
-    features: ['Everything in Dashboards', 'Hit Rates — full slate', 'EdgeCenter full board', 'My Angles + sharing'],
-    spectrum: true,
-  },
-]
 
 function PricingPreview() {
   const [annual, setAnnual] = useState(false)
@@ -54,7 +41,7 @@ function PricingPreview() {
                 >
                   {label}
                   {label === 'Annual' && (
-                    <span className="data-mono ml-1.5 text-[10px] text-sp-lime">−20%</span>
+                    <span className="data-mono ml-1.5 text-[10px] text-sp-lime">−{minSavingsPct()}%</span>
                   )}
                 </button>
               )
@@ -63,23 +50,25 @@ function PricingPreview() {
         </div>
 
         <div className="mx-auto grid max-w-3xl grid-cols-1 gap-6 md:grid-cols-2">
-          {PLANS.map((p, i) => (
+          {PLANS.map((p, i) => {
+            const spectrum = p.id === 'allaccess'
+            return (
             <motion.div
               key={p.name}
-              initial={{ opacity: 0, y: 32, scale: p.spectrum ? 1 : 1 }}
-              whileInView={{ opacity: 1, y: 0, scale: p.spectrum ? 1.02 : 1 }}
+              initial={{ opacity: 0, y: 32, scale: spectrum ? 1 : 1 }}
+              whileInView={{ opacity: 1, y: 0, scale: spectrum ? 1.02 : 1 }}
               viewport={{ once: true, amount: 0.2 }}
               transition={{ duration: 0.6, delay: i * 0.12, ease: EASE }}
               className="relative rounded-xl bg-bg-1 p-7"
               style={{
-                border: p.spectrum ? '1.5px solid transparent' : '1px solid rgba(99,102,241,0.5)',
-                background: p.spectrum
+                border: spectrum ? '1.5px solid transparent' : '1px solid rgba(99,102,241,0.5)',
+                background: spectrum
                   ? 'linear-gradient(var(--bg-1), var(--bg-1)) padding-box, var(--gradient-spectrum) border-box'
                   : undefined,
-                boxShadow: p.spectrum ? '0 0 32px rgba(99,102,241,0.25)' : undefined,
+                boxShadow: spectrum ? '0 0 32px rgba(99,102,241,0.25)' : undefined,
               }}
             >
-              {p.spectrum && (
+              {spectrum && (
                 <span
                   className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-sm px-2.5 py-1 text-[10px] font-bold tracking-[0.14em] text-white"
                   style={{ background: 'var(--gradient-spectrum)' }}
@@ -98,7 +87,7 @@ function PricingPreview() {
                     transition={{ duration: 0.25 }}
                     className="data-mono inline-block text-4xl font-bold text-text-1"
                   >
-                    ${(annual ? p.annual : p.monthly).toFixed(2)}
+                    {fmtUsd(annual ? monthlyEquivalent(p) : p.monthlyPrice)}
                   </motion.span>
                 </AnimatePresence>
                 <span className="text-sm text-text-3">/mo{annual ? ' · billed annually' : ''}</span>
@@ -112,7 +101,8 @@ function PricingPreview() {
                 ))}
               </ul>
             </motion.div>
-          ))}
+            )
+          })}
         </div>
 
         <p className="mt-8 text-center">
@@ -205,7 +195,7 @@ function FinalCTA() {
             >
               Start 7-day free trial
             </Link>
-            <span className="data-mono text-xs text-text-3">7 days free · then from $12.99/mo</span>
+            <span className="data-mono text-xs text-text-3">7 days free · then from {fmtUsd(fromMonthlyPrice())}/mo</span>
           </motion.div>
         </div>
       </div>

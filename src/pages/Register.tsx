@@ -4,13 +4,14 @@ import { motion } from 'framer-motion'
 import { Check, Eye, EyeOff, Loader2 } from 'lucide-react'
 import AuthSplit from '@/pages/login/AuthSplit'
 import { Checkbox } from '@/components/ui/checkbox'
+import { PLANS, fmtUsd, savingsPct } from '@/pages/pricing/plans'
 
 const EASE: [number, number, number, number] = [0.16, 1, 0.3, 1]
 
-const PLANS = [
-  { id: 'dashboards', name: 'Dashboards Only', monthly: 12.99, annual: 149.99 },
-  { id: 'allaccess', name: 'All Access', monthly: 24.99, annual: 249.99 },
-] as const
+// Prices come from the single source of truth (pricing/plans.ts). The local
+// copy that used to live here disagreed with the pricing page on the annual
+// figure — checkout charged 25% more than the marketing page advertised.
+// Never reintroduce a local price.
 
 const AFFILIATE_RE = /^[A-Z0-9]{4,10}$/
 const STRENGTH_LABELS = ['Weak', 'Good', 'Strong']
@@ -45,8 +46,8 @@ export default function Register() {
   const selectedPlan = PLANS.find((p) => p.id === planId)!
   const priceLabel =
     cadence === 'monthly'
-      ? `$${selectedPlan.monthly.toFixed(2)}/mo`
-      : `$${selectedPlan.annual.toFixed(2)}/yr`
+      ? `${fmtUsd(selectedPlan.monthlyPrice)}/mo`
+      : `${fmtUsd(selectedPlan.annualTotal)}/yr`
 
   const score = useMemo(() => {
     if (password.length === 0) return 0
@@ -131,7 +132,7 @@ export default function Register() {
                       )}
                       <span className="block text-sm font-semibold text-text-1">{p.name}</span>
                       <span className="data-mono mt-0.5 block text-[12px] text-text-3">
-                        ${cadence === 'monthly' ? p.monthly.toFixed(2) + '/mo' : p.annual.toFixed(2) + '/yr'}
+                        {cadence === 'monthly' ? `${fmtUsd(p.monthlyPrice)}/mo` : `${fmtUsd(p.annualTotal)}/yr`}
                       </span>
                     </label>
                   )
@@ -163,7 +164,7 @@ export default function Register() {
                       <span className="block text-sm font-medium capitalize text-text-1">{c}</span>
                       {c === 'annual' && (
                         <span className="data-mono mt-0.5 inline-block rounded-sm bg-sp-amber/15 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-sp-amber">
-                          2 months free
+                          save {savingsPct(selectedPlan)}%
                         </span>
                       )}
                     </label>

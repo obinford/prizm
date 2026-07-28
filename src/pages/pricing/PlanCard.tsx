@@ -6,7 +6,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { Check } from 'lucide-react'
 import DigitRoll from '@/pages/pricing/DigitRoll'
 import Magnetic from '@/pages/pricing/Magnetic'
-import type { Plan } from '@/pages/pricing/plans'
+import { fmtUsd, monthlyEquivalent, type Plan } from '@/pages/pricing/plans'
 
 interface Props {
   plan: Plan
@@ -15,7 +15,7 @@ interface Props {
 }
 
 export default function PlanCard({ plan, annual, highlight }: Props) {
-  const price = annual ? plan.annual : plan.monthly
+  const price = annual ? monthlyEquivalent(plan) : plan.monthlyPrice
 
   return (
     <div
@@ -51,7 +51,7 @@ export default function PlanCard({ plan, annual, highlight }: Props) {
             className="inline-block"
           >
             <DigitRoll
-              value={`$${price.toFixed(2)}`}
+              value={fmtUsd(price)}
               className="text-4xl font-bold text-text-1"
             />
           </motion.span>
