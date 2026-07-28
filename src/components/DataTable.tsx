@@ -38,6 +38,17 @@ export interface DataTableProps<Row> {
   /** Compact one-line summary for the mobile card. */
   mobileSummary?: (row: Row) => string
   mobileTitle?: (row: Row) => string
+  /**
+   * Column keys rendered as heat-tinted stat cells on the mobile card.
+   *
+   * Why keys and not a cell factory: the heat tint, delta line and em-dash
+   * behaviour live in this component on top of ColumnDef + src/lib/heat.ts.
+   * A (row) => ColumnDef[] factory would let a caller construct columns that
+   * bypass that logic (or duplicate it). Keys select from the SAME ColumnDef
+   * list the desktop table renders, so mobile cannot drift from desktop.
+   * Unset = the previous title+summary-only card, so nothing regresses.
+   */
+  mobileColumns?: string[]
   /** Enables the Export CSV button. Filename gets the slate date appended. */
   exportName?: string
   /** Active-rule summary appended to the CSV provenance comment line. */
@@ -67,6 +78,7 @@ export default function DataTable<Row>({
   defaultSortDir = -1,
   mobileSummary,
   mobileTitle,
+  mobileColumns,
   exportName,
   exportFilters,
 }: DataTableProps<Row>) {
@@ -139,6 +151,15 @@ export default function DataTable<Row>({
       .join('\n\n')
 
   const skeleton = useMemo(() => Array.from({ length: 6 }, (_, i) => i), [])
+
+  // Mobile heat cells resolve against the desktop column list — a key that
+  // names no column renders nothing (listed, never guessed).
+  const mobileCols = useMemo(() => {
+    if (!mobileColumns?.length) return []
+    return mobileColumns
+      .map((key) => columns.find((c) => c.key === key))
+      .filter((c): c is ColumnDef<Row> => c != null)
+  }, [mobileColumns, columns])
 
   if (loading) {
     return (
@@ -367,6 +388,71 @@ export default function DataTable<Row>({
             {mobileSummary && (
               <span className="data-mono mt-1 block text-[11px] text-text-3">
                 {mobileSummary(row)}
+              </span>
+            )}
+            {mobileCols.length > 0 && (
+              <span className="mt-3 grid grid-cols-3 gap-1.5">
+                {mobileCols.map((col) => {
+                  const raw = col.value(row)
+                  const num = cellNumber(raw)
+
+                  // Custom cell — rendered content, no heat math
+                  if (col.render) {
+                    return (
+                      <span key={col.key} className="rounded-sm border border-line bg-bg-1 px-2 py-1.5">
+                        <span className="overline-caption block text-text-3">{col.label}</span>
+                        <span className="mt-0.5 block">{col.render(row)}</span>
+                      </span>
+                    )
+                  }
+
+                  // Missing -> em-dash, same title hint as desktop
+                  if (raw == null || (typeof raw === 'number' && !Number.isFinite(raw))) {
+                    return (
+                      <span
+                        key={col.key}
+                        title={col.missingHintFor?.(row) ?? col.missingHint ?? `No ${col.label} available. Source: ${col.source}`}
+                        className="rounded-sm border border-line bg-bg-1 px-2 py-1.5"
+                      >
+                        <span className="overline-caption block text-text-3">{col.label}</span>
+                        <span className="data-mono mt-0.5 block text-[13px] text-text-3">{DASH}</span>
+                      </span>
+                    )
+                  }
+
+                  const text =
+                    num != null ? (col.format ? col.format(num) : String(num)) : String(raw)
+
+                  // Heat cell — identical tint + delta line as desktop
+                  const base = col.heat && col.baseline ? col.baseline(row) : null
+                  if (col.heat && base != null && num != null) {
+                    let d = deltaPct(num, base)
+                    if (col.invert) d = -d
+                    const { background, textClass } = heatCell(d)
+                    return (
+                      <span
+                        key={col.key}
+                        className="rounded-sm border border-line px-2 py-1.5"
+                        style={{ backgroundColor: background }}
+                      >
+                        <span className="overline-caption block text-text-3">{col.label}</span>
+                        <span className={`data-mono mt-0.5 block text-[13px] font-medium ${textClass}`}>
+                          {text}
+                        </span>
+                        <span className={`data-mono block text-[10px] ${deltaTextClass(d)}`}>
+                          {formatDelta(d, 1)}%
+                        </span>
+                      </span>
+                    )
+                  }
+
+                  return (
+                    <span key={col.key} className="rounded-sm border border-line bg-bg-1 px-2 py-1.5">
+                      <span className="overline-caption block text-text-3">{col.label}</span>
+                      <span className="data-mono mt-0.5 block text-[13px] text-text-1">{text}</span>
+                    </span>
+                  )
+                })}
               </span>
             )}
           </motion.button>

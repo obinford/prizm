@@ -539,6 +539,9 @@ export default function LineupsTab({
             r.batter.avg,
           )}`
         }
+        // Step 10.1 — same as Starters: heat columns are the active window
+        // columns, resolved from the desktop ColumnDef list (no drift).
+        mobileColumns={columns.filter((c) => c.heat).map((c) => c.key)}
       />
 
       <BatterDrawer row={selected} onClose={() => setSelected(null)} />

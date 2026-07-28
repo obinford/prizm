@@ -646,6 +646,27 @@ export function textSnapshot(text: string, source: string): AngleSnapshot {
   return { kind: 'text', source, text }
 }
 
+/**
+ * One-call note save shared by Hit Rates (and formerly the hockey drawers).
+ * Moved here from src/pages/hockey/extras.tsx in Step 10.2 when the NHL
+ * fabrication was gated — the hockey module is deleted, the save stays.
+ */
+export function saveAngle(label: string, detail: string, sport: Sport): void {
+  try {
+    addAngle({
+      title: label,
+      sport,
+      type: 'note',
+      note: detail,
+      tags: [],
+      shared: false,
+      snapshot: textSnapshot(detail || label, `Hit Rates · ${shortDate()}`),
+    })
+  } catch {
+    /* angle persistence is best-effort from a table row action */
+  }
+}
+
 export function shortDate(d = new Date()): string {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }

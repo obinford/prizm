@@ -264,6 +264,10 @@ export default function PitcherTable({
         mobileSummary={(r) =>
           `${r.pitcher.team} · ${r.pitcher.throws}HP vs ${r.opp} · Edge ${edgeScore(r.pitcher)}`
         }
+        // Step 10.1 — the heat is the product on Starters; the heat columns
+        // are exactly the active rolling-window columns (preset narrowing
+        // included), resolved from the same ColumnDef list as desktop.
+        mobileColumns={columns.filter((c) => c.heat).map((c) => c.key)}
       />
 
       <PitcherDrawer
