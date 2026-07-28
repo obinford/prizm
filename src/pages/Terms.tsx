@@ -31,13 +31,13 @@ const SECTIONS: LegalSection[] = [
       <>
         <p>
           Prizm provides sports statistics dashboards, rolling-window analysis, hit-rate tools, and
-          AI-generated research content for Major League Baseball and the National Hockey League.
+          matchup research content for Major League Baseball and the National Hockey League.
           Features vary by plan and may change over time.
         </p>
         <p>
           <strong className="font-semibold text-text-1">Data sources:</strong> MLB stats come from
           official MLB feeds plus the Statcast warehouse; NHL stats come from official NHL feeds.
-          Odds are aggregated book lines (34 books) refreshed daily — informational only, not
+          Odds are aggregated book lines (30+ sportsbooks) refreshed daily — informational only, not
           betting advice.
         </p>
       </>

@@ -69,7 +69,14 @@ const FAQS: FaqEntry[] = [
   {
     category: 'Data & windows',
     q: 'How fresh is the data?',
-    a: 'MLB stats refresh nightly from official MLB feeds plus the Statcast warehouse; NHL stats refresh from official NHL feeds. Odds are aggregated book lines (34 books) refreshed daily.',
+    // "30+ sportsbooks": warehouse-verified 2026-07-28 —
+    //   select count(distinct b) from (
+    //     select over_book as b from sv_odds where over_book is not null
+    //     union select under_book from sv_odds where under_book is not null) t;
+    //   → 32 distinct entries, 30 distinct brands (Hard Rock Bet appears as
+    //   three regional entries). Floor stays true as the feed grows; re-run
+    //   the query to re-check. Previously "34 books" — wrong under both counts.
+    a: 'MLB stats refresh nightly from official MLB feeds plus the Statcast warehouse; NHL stats refresh from official NHL feeds. Odds are aggregated book lines (30+ sportsbooks) refreshed daily.',
   },
   {
     category: 'Tools',

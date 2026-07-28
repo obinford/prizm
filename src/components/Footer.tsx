@@ -67,7 +67,11 @@ export default function Footer() {
         </div>
 
         <p className="mt-12 text-xs leading-relaxed text-text-3">
-          For entertainment &amp; research. Not a sportsbook. 21+. MLB stats: official MLB feeds + Statcast warehouse. NHL stats: official NHL feeds. Odds: aggregated book lines (34 books) refreshed daily; informational only, not betting advice.
+          For entertainment &amp; research. Not a sportsbook. 21+. MLB stats: official MLB feeds + Statcast warehouse. NHL stats: official NHL feeds. Odds: aggregated book lines (30+ sportsbooks) refreshed daily; informational only, not betting advice.
+          {/* "30+ sportsbooks" — warehouse-verified 2026-07-28: 32 distinct
+              over/under book entries in sv_odds, 30 distinct brands (Hard Rock
+              Bet appears as three regional entries). Floor, not a literal;
+              query recorded at Faq.tsx. Was "34 books" — wrong both ways. */}
         </p>
 
         <div className="mt-6 flex items-center justify-between border-t border-line pt-8">
