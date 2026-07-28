@@ -52,6 +52,13 @@ export interface ColumnDef<Row> {
   render?: (row: Row) => ReactNode
   /** Tooltip shown on an em-dash cell, explaining why the value is missing. */
   missingHint?: string
+  /**
+   * Per-row missing reason — wins over missingHint when it returns a string.
+   * For values whose absence means different things on different rows (e.g.
+   * lineup not posted vs posted but not starting). Collapsing those states
+   * into one hint is the lie this exists to avoid.
+   */
+  missingHintFor?: (row: Row) => string | undefined
 }
 
 /** A named column set — the market-keyed presets (K, BB, H, TB, ...). */

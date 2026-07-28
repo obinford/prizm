@@ -8,14 +8,16 @@
 // accordingly — fmt.rate for the former, fmt.svPct for the latter. Getting this
 // wrong renders 2410% instead of 24.1%, so each column states which it reads.
 //
-// A note on what is NOT here: batting order and opponent handedness are
-// Handigraphs' columns 4 and 6 and gate every batter prop, but neither exists in
-// Prizm's data model (Batter has no order field; opposing hand is a row filter
-// only). They need a lineup feed. Deliberately absent rather than approximated.
+// A note on what is NOT here: opponent handedness is a row field (oppHand),
+// not a stat — it reads the slate's probable starter, never the lineup feed.
+// Batting order arrived in Step 6 as BATTER_ORDER_COLUMN below, backed by the
+// MLB Stats API schedule feed; it lives outside BATTER_COLUMNS so market
+// presets can never hide it (same treatment as the game column).
 
 import type { ColumnDef, ColumnPreset } from '@/lib/columns'
 import { fmt } from '@/lib/columns'
 import type { Batter, MlbWindowKey } from '@/data/mlbPlayers'
+import { ORDER_MISSING_HINTS } from '@/lib/lineups'
 
 /** Row shape — the Batters tab renders batters directly, unlike StarterEntry. */
 export interface BatterRow {
@@ -24,6 +26,10 @@ export interface BatterRow {
   oppHand?: 'L' | 'R' | null
   opp?: string
   homeAway?: 'Home' | 'Away'
+  /** Tonight's batting-order spot (1–9) once the lineup is posted. */
+  battingOrder?: number | null
+  /** Whether this row's game has a posted lineup — drives the Ord dash hint. */
+  lineupState?: 'posted' | 'not-posted' | 'no-game'
 }
 
 const MYSQL = 'MLB Stats API game logs → season_stats'
@@ -87,6 +93,30 @@ export const BATTER_IDENTITY_COLUMNS: ColumnDef<BatterRow>[] = [
     sortable: true,
   },
 ]
+
+// ---------------------------------------------------------------------------
+// Batting order — Step 6, MLB Stats API schedule feed (hydrate=lineups)
+// ---------------------------------------------------------------------------
+
+/**
+ * Tonight's batting-order spot. Kept OUTSIDE BATTER_COLUMNS so it is always
+ * rendered (the Batters tab places it immediately after the player cell) and
+ * always available to the rule builder — a market preset must never hide the
+ * column a user filtered on. Blank until the lineup posts; the dash tooltip
+ * says which of the three missing states the row is in.
+ */
+export const BATTER_ORDER_COLUMN: ColumnDef<BatterRow> = {
+  key: 'battingOrder',
+  label: 'Ord',
+  value: (r) => r.battingOrder ?? null,
+  format: fmt.int,
+  source: 'MLB Stats API → schedule?hydrate=lineups',
+  definition:
+    'Spot in tonight’s batting order. Blank until the lineup is posted, typically 3–4 hours before first pitch.',
+  markets: ['All batter props'],
+  missingHintFor: (r) => ORDER_MISSING_HINTS[r.lineupState ?? 'no-game'],
+  sortable: true,
+}
 
 // ---------------------------------------------------------------------------
 // Season — legacy MySQL rates

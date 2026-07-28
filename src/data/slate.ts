@@ -14,6 +14,7 @@ export interface SlateGame {
   homeProbable?: string
   awayProbableId?: string
   homeProbableId?: string
+  gamePk?: number // MLBAM gamePk from sv_slate
   total?: number // game total line
   note?: string
 }

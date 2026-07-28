@@ -7,6 +7,7 @@ import { anglesRouter } from "./anglesRouter";
 import { followsRouter } from "./followsRouter";
 import { ingestRouter } from "./ingestRouter";
 import { teamsRouter } from "./teamsRouter";
+import { lineupsRouter } from "./lineupsRouter";
 
 export const appRouter = createRouter({
   ping: publicQuery.query(() => ({ ok: true, ts: Date.now() })),
@@ -18,6 +19,7 @@ export const appRouter = createRouter({
   follows: followsRouter,
   ingest: ingestRouter,
   teams: teamsRouter,
+  lineups: lineupsRouter,
 });
 
 export type AppRouter = typeof appRouter;

@@ -17,7 +17,9 @@ import DataTable from '@/components/DataTable'
 import type { ColumnDef } from '@/lib/columns'
 import { fmt } from '@/lib/columns'
 import type { BatterRow } from '@/lib/columns/mlbBatters'
-import { BATTER_COLUMNS, BATTER_PRESETS, batterWindowColumns } from '@/lib/columns/mlbBatters'
+import { BATTER_COLUMNS, BATTER_ORDER_COLUMN, BATTER_PRESETS, batterWindowColumns } from '@/lib/columns/mlbBatters'
+import { resolveBattingOrder } from '@/lib/lineups'
+import { trpc } from '@/providers/trpc'
 import type { Pitcher } from '@/data/mlbPlayers'
 import {
   getPitcher,
@@ -56,6 +58,9 @@ const MARKET_TO_PRESET: Record<string, string> = {
   ks: 'k',
   bb: 'bb',
 }
+
+/** Lineup feed is cached 5 minutes server-side; matching that here. */
+const LINEUP_OPTS = { staleTime: 5 * 60_000, retry: 1 } as const
 
 /** Season/window stats shown in the drawer, with their formatters. */
 const DRAWER_STATS = [
@@ -292,6 +297,18 @@ export default function LineupsTab({
     return () => registerRules?.(null)
   }, [rules, registerRules])
 
+  // Step 6 — tonight's posted lineups (MLB Stats API schedule feed). A game
+  // counts as posted when its gamePk is in the feed's posted set, falling
+  // back to the slate-id list. "Not posted" and "posted but not starting"
+  // are different states and the Ord column's dash hint says which.
+  const lineupsQuery = trpc.lineups.today.useQuery(undefined, LINEUP_OPTS)
+  const lineups = lineupsQuery.data
+  const postedGamePks = useMemo(() => new Set(lineups?.postedGamePks ?? []), [lineups])
+  const postedGameIds = useMemo(() => new Set(lineups?.lineupsPostedFor ?? []), [lineups])
+  const isPosted = (g: SlateGame) =>
+    (g.gamePk != null && postedGamePks.has(g.gamePk)) || postedGameIds.has(g.id)
+  const postedCount = MLB_SLATE.filter(isPosted).length
+
   // 2.1b — one flat row list: every batter on both teams of every game.
   // oppHand is the OPPOSING probable starter's throws; null when the slate
   // names no probable — never guessed, so Opp L/R dashes out honestly.
@@ -308,9 +325,19 @@ export default function LineupsTab({
         if (values.venue && homeAway.toLowerCase() !== values.venue) return
         // Handedness filter keeps batters facing a starter of that hand.
         if (values.handedness && oppP?.throws !== values.handedness) return
+        const posted = isPosted(game)
         for (const batter of getTeamBatters(team)) {
           if (q && !batter.name.toLowerCase().includes(q)) continue
-          out.push({ batter, game, opp, oppHand: oppP?.throws ?? null, homeAway })
+          const { order, state } = resolveBattingOrder(lineups?.slugs, batter.id, posted)
+          out.push({
+            batter,
+            game,
+            opp,
+            oppHand: oppP?.throws ?? null,
+            homeAway,
+            battingOrder: order,
+            lineupState: state,
+          })
         }
       }
 
@@ -318,7 +345,9 @@ export default function LineupsTab({
       addTeam(game.home, game.away, awayProb, 'Home')
     }
     return out
-  }, [values.handedness, values.venue, query, gameFilter])
+    // isPosted is stable per render (closure over the posted sets)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [values.handedness, values.venue, query, gameFilter, lineups, postedGamePks, postedGameIds])
 
   // Filter-by-game options carry the probable-pitcher chip information
   // (name · season K% · hand) so dropping the per-game headers loses nothing.
@@ -424,7 +453,7 @@ export default function LineupsTab({
       ),
     }
 
-    return [identity, gameCol, ...stats, ...windowCols, actions]
+    return [identity, BATTER_ORDER_COLUMN, gameCol, ...stats, ...windowCols, actions]
     // saveAngleFor closes over stable setters; angleFor drives the popover only.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activePresetKey, windows, angleFor])
@@ -497,8 +526,9 @@ export default function LineupsTab({
             ? `No players match these filters and ${rules.length} rule${rules.length === 1 ? '' : 's'}`
             : 'No players match these filters'
         }
-        defaultSortKey="team"
+        defaultSortKey={postedCount > 0 ? 'battingOrder' : 'team'}
         defaultSortDir={1}
+        provenance={`Lineups posted for ${postedCount} of ${MLB_SLATE.length} games`}
         exportName="prizm-batters"
         exportFilters={
           rules.length > 0 ? rules.map((r) => describeRule(r, columns)).join(', ') : undefined

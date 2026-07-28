@@ -290,7 +290,7 @@ export default function DataTable<Row>({
                     return (
                       <td
                         key={col.key}
-                        title={col.missingHint ?? `No ${col.label} available. Source: ${col.source}`}
+                        title={col.missingHintFor?.(row) ?? col.missingHint ?? `No ${col.label} available. Source: ${col.source}`}
                         className="data-mono border-b border-l border-line px-3 py-3 text-center text-[13px] text-text-3"
                       >
                         {DASH}
