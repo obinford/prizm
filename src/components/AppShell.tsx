@@ -3,7 +3,7 @@ import { canStepSlateDay, SLATE_DAY_LABEL, stepSlateDay, useSlateDay } from '@/l
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router'
 import { motion, AnimatePresence } from 'framer-motion'
 import { format } from 'date-fns'
-import { BarChart3, Bookmark, Bell, BookOpen, ChevronLeft, ChevronRight, Database, LayoutDashboard, Loader2, LogOut, Menu, Moon, Search, Sparkles, Sun, UserRound, X, Zap } from 'lucide-react'
+import { BarChart3, Bookmark, Bell, BookOpen, ChevronLeft, ChevronRight, Database, LayoutDashboard, Loader2, LogOut, Menu, Moon, Search, Sun, UserRound, X, Zap } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { LOGIN_PATH } from '@/const'
 import { trpc } from '@/providers/trpc'
@@ -19,7 +19,6 @@ const RESEARCH_NAV = [
 ]
 
 const AI_NAV = [
-  { label: 'Ask Prizm', to: '/ask', icon: Sparkles, chip: 'AI' },
   { label: 'My Angles', to: '/angles', icon: Bookmark },
 ]
 
@@ -30,7 +29,6 @@ const PAGE_TITLES: [RegExp, string][] = [
   [/^\/profiler/, 'Player Profiler'],
   [/^\/gamecenter/, 'GameCenter'],
   [/^\/edgecenter/, 'EdgeCenter'],
-  [/^\/ask/, 'Ask Prizm'],
   [/^\/angles/, 'My Angles'],
   [/^\/glossary/, 'Glossary'],
 ]

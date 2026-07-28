@@ -9,15 +9,19 @@ gsap.registerPlugin(ScrollTrigger, useGSAP)
 
 const HeroPrism = lazy(() => import('@/pages/home/HeroPrism'))
 
+// Feature descriptors only — this marquee previously carried hardcoded
+// per-player stat lines ("JUDGE · L30 SLG .731 · +18%") that were invented
+// and froze the day they were written. Rule 1: no fabricated stats, even
+// decorative ones. Every item below names a capability, not a number.
 const TICKER_ITEMS = [
-  'JUDGE · L30 SLG .731 · +18%',
-  'SKUBAL · K% 33.8 L120 BF',
-  'MCDAVID · 2.0 P/GP L120 MIN',
-  'RALEIGH · TB/G +25% L30',
-  'WOLF · .931 SV% L240 MIN',
-  'MACKINNON · 12 SOG VS DAL',
-  'SCHWARBER · 6 HR L30 PA',
-  'HELLEBUYCK · +0.88 GSAX/60',
+  'ROLLING WINDOWS · L30 TO L240',
+  'DE-VIGGED FAIR ODDS',
+  'PARK FACTORS · WEATHER-ADJUSTED',
+  'VS L/R PITCHER SPLITS',
+  'HOME / AWAY SPLITS',
+  'HIT RATES ON EVERY MARKET',
+  'CONFIRMED LINEUPS + BATTING ORDER',
+  'BULLPEN FATIGUE TRACKING',
 ]
 
 function useReducedMotion() {

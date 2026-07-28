@@ -11,7 +11,6 @@ import Register from '@/pages/Register'
 import Dashboard from '@/pages/dashboard/Dashboard'
 import HockeyDashboard from '@/pages/HockeyDashboard'
 import Profiler from '@/pages/Profiler'
-import Ask from '@/pages/Ask'
 import Angles from '@/pages/Angles'
 import Glossary from '@/pages/Glossary'
 
@@ -60,7 +59,10 @@ export default function App() {
         <Route path="gamecenter" element={<Navigate to="/dashboard?tab=gamecenter" replace />} />
         <Route path="edgecenter" element={<Navigate to="/dashboard?tab=edgecenter" replace />} />
         <Route path="profiler" element={<Profiler />} />
-        <Route path="ask" element={<Ask />} />
+        {/* Removed: /ask "Ask Prizm" (src/pages/Ask.tsx + src/pages/ask/* +
+            src/data/askResponses.ts). It was a keyword-matched canned-answer
+            surface serving invented statistics under an AI label, with no
+            model behind it — rule 1 violation. Deleted, not redirected. */}
         <Route path="angles" element={<Angles />} />
         <Route path="glossary" element={<Glossary />} />
       </Route>

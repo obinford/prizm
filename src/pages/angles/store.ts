@@ -694,28 +694,22 @@ export function attachOptions(): AttachOption[] {
   if (mack) out.push({ id: 'att-mack', label: 'MacKinnon · SOG hit rate', sport: 'nhl', type: 'edge', title: mack.title, snapshot: mack.snapshot })
   const wolf = playerPropSnapshot('dustin-wolf')
   if (wolf) out.push({ id: 'att-wolf', label: 'Dustin Wolf · Saves hit rate', sport: 'nhl', type: 'edge', title: wolf.title, snapshot: wolf.snapshot })
-  out.push({
-    id: 'att-ask',
-    label: 'Ask Prizm · Skubal K answer',
-    sport: 'mlb',
-    type: 'ai',
-    title: 'Skubal over 7.5 Ks — Ask Prizm',
-    snapshot: textSnapshot(
-      'Skubal carries a 31.2% K rate on the season and Cleveland is whiffing 26.1% vs left-handed pitching in June. His L120 BF window shows his best xwOBA of the year — form and matchup point the same direction.',
-      `Ask Prizm · ${shortDate()}`,
-    ),
-  })
+  // Removed: the 'att-ask' preset. It attached a canned "Ask Prizm" answer with
+  // invented statistics under an AI label; the Ask Prizm surface itself was
+  // deleted for the same rule-1 violation. Real snapshots above remain.
   return out
 }
 
-/** One demo card for the empty-state "See an example angle" button. */
+/** One demo card for the empty-state "See an example angle" button.
+ * The snapshot is real (live split table when hydrated); the note is
+ * explicitly a placeholder so no invented stat claims ship as prose. */
 export function exampleAngle(): Omit<Angle, 'id' | 'createdAt'> {
   const raleigh = playerSnapshot('cal-raleigh')
   return {
-    title: 'Raleigh TB over — barrel rate spike',
+    title: 'Example angle — total bases over',
     sport: 'mlb',
     type: 'table',
-    note: 'Barrel rate doubled over the L30 window and the L30 TB/G is tracking +25% vs baseline. Sutter Health heat boosts carry again tonight — riding the over until the window cools.',
+    note: 'This is a demo. Your note is where the reasoning goes: the window you are watching, the matchup, and what would make you get off the angle.',
     tags: ['tb-over', 'hot-window'],
     shared: false,
     snapshot: raleigh?.snapshot ?? textSnapshot('Saved from the MLB dashboard split table.', `MLB Dashboards · ${shortDate()}`),
