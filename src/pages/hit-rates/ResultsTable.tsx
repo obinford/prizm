@@ -85,8 +85,9 @@ function HitBar({
 
 /**
  * Real-odds price block (design.md §data-mono): ACTIVE side's consensus price
- * first, the other side second; best-book tag for the active side. NHL rows
- * have no odds feed — flat price + note.
+ * first, the other side second; best-book tag for the active side. Rows with
+ * no real price disclose why: NHL has no odds feed; MLB flat rows are
+ * Prizm-derived lines (XBH and the fallback set) no book prices.
  */
 function PriceBlock({ prop, side, compact }: { prop: PropLine; side: PropSide; compact?: boolean }) {
   const real = hasRealOdds(prop)
@@ -120,7 +121,9 @@ function PriceBlock({ prop, side, compact }: { prop: PropLine; side: PropSide; c
         </span>
       ) : (
         !real && (
-          <span className="data-mono mt-0.5 block text-[9px] text-text-3/70">no odds feed · flat price</span>
+          <span className="data-mono mt-0.5 block text-[9px] text-text-3/70">
+            {prop.sport === 'nhl' ? 'no odds feed · flat price' : 'derived line · no book price'}
+          </span>
         )
       )}
     </span>
@@ -759,8 +762,10 @@ export default function ResultsTable({
                     best {bestTag}
                   </span>
                 )}
-                {!hasRealOdds(p) && p.sport === 'nhl' && (
-                  <span className="text-[9px] font-normal text-text-3/70">no odds feed</span>
+                {!hasRealOdds(p) && (
+                  <span className="text-[9px] font-normal text-text-3/70">
+                    {p.sport === 'nhl' ? 'no odds feed' : 'derived · no book price'}
+                  </span>
                 )}
               </p>
               {(fairSide != null || hand) && (

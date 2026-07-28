@@ -20,7 +20,7 @@ import {
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import type { HitWindow, PropMarket, PropSide } from '@/data/props'
-import { HIT_WINDOWS, MLB_MARKETS, NHL_MARKETS } from '@/data/props'
+import { HIT_WINDOWS, MLB_MARKETS, NHL_MARKETS, DERIVED_MARKETS } from '@/data/props'
 
 export const MARKET_ICONS: Record<PropMarket, LucideIcon> = {
   XBH: Layers,
@@ -104,6 +104,14 @@ export default function ScannerControls({ state, onChange }: Props) {
             >
               <Icon size={13} strokeWidth={1.5} className={explicitly ? 'text-sp-indigo' : ''} />
               {m}
+              {DERIVED_MARKETS.has(m) && (
+                <span
+                  title="Prizm-derived line from game logs — no book carries this market, so price, fair and edge columns dash out"
+                  className="rounded-sm border border-line px-1 py-px text-[9px] font-semibold uppercase tracking-wide text-text-3"
+                >
+                  derived
+                </span>
+              )}
             </motion.button>
           )
         })}
