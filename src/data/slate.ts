@@ -18,7 +18,16 @@ export interface SlateGame {
   awayProbableHand?: 'L' | 'R' | null
   homeProbableHand?: 'L' | 'R' | null
   gamePk?: number // MLBAM gamePk from sv_slate
-  total?: number // game total line
+  /** Game total line. Null = no joinable odds event (or no key) — em-dash. */
+  total?: number | null
+  // ── The Odds API game odds (FIX 19, MLB only) — cross-book means, `us` ──
+  moneylineHome?: number | null
+  moneylineAway?: number | null
+  runline?: number | null // home spread, typically -1.5
+  runlineHomePrice?: number | null
+  runlineAwayPrice?: number | null
+  totalOverPrice?: number | null
+  totalUnderPrice?: number | null
   note?: string
 }
 

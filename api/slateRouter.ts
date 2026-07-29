@@ -5,6 +5,7 @@ import { getDb } from "./queries/connection";
 import { players, slateGames, teamStats } from "@db/schema";
 import type { SlateGame } from "@contracts/types";
 import { getSavantSlate, type SvSlateRow } from "./supabase/savant";
+import { gameOddsProvenance, withGameOdds } from "./odds/gameOdds";
 
 export function etTimeLabel(isoUtc: string): string {
   // '2026-07-26T16:15:00+00:00' -> '12:15 PM ET'
@@ -24,9 +25,13 @@ export function etTimeLabel(isoUtc: string): string {
 }
 
 /** MLB games from sv_slate (probables with hands). NHL stays on MySQL. */
-async function mlbSlateFromSavant(): Promise<SlateGame[]> {
-  const { games } = await getSavantSlate();
-  if (games.length === 0) return [];
+async function mlbSlateFromSavant(): Promise<{
+  date: string;
+  games: SlateGame[];
+  startUtcById: Map<string, string>;
+}> {
+  const { date, games } = await getSavantSlate();
+  if (games.length === 0) return { date, games: [], startUtcById: new Map() };
   // map probable MLBAM ids → frontend slugs where the player exists locally
   const spIds = games
     .flatMap((g) => [g.away_sp_id, g.home_sp_id])
@@ -39,36 +44,53 @@ async function mlbSlateFromSavant(): Promise<SlateGame[]> {
     local.filter((p) => p.sport === "mlb").map((p) => [p.extId, p.slug]),
   );
   const hand = (h: string | null): "L" | "R" | null => (h === "L" || h === "R" ? h : null);
-  return games.map((g: SvSlateRow) => ({
-    id: `mlb-${g.away_abbr.toLowerCase()}-${g.home_abbr.toLowerCase()}`,
-    sport: "mlb" as const,
-    away: g.away_abbr,
-    home: g.home_abbr,
-    startTime: etTimeLabel(g.start_utc),
-    venue: g.venue ?? "",
-    awayProbable: g.away_sp_name ?? undefined,
-    homeProbable: g.home_sp_name ?? undefined,
-    awayProbableId:
-      (g.away_sp_id != null && slugByExtId.get(g.away_sp_id)) ||
-      (g.away_sp_id != null ? String(g.away_sp_id) : undefined),
-    homeProbableId:
-      (g.home_sp_id != null && slugByExtId.get(g.home_sp_id)) ||
-      (g.home_sp_id != null ? String(g.home_sp_id) : undefined),
-    awayProbableHand: hand(g.away_sp_hand),
-    homeProbableHand: hand(g.home_sp_hand),
-    gamePk: g.game_pk,
-  }));
+  const startUtcById = new Map<string, string>();
+  const mapped = games.map((g: SvSlateRow) => {
+    const id = `mlb-${g.away_abbr.toLowerCase()}-${g.home_abbr.toLowerCase()}`;
+    startUtcById.set(id, g.start_utc);
+    return {
+      id,
+      sport: "mlb" as const,
+      away: g.away_abbr,
+      home: g.home_abbr,
+      startTime: etTimeLabel(g.start_utc),
+      venue: g.venue ?? "",
+      awayProbable: g.away_sp_name ?? undefined,
+      homeProbable: g.home_sp_name ?? undefined,
+      awayProbableId:
+        (g.away_sp_id != null && slugByExtId.get(g.away_sp_id)) ||
+        (g.away_sp_id != null ? String(g.away_sp_id) : undefined),
+      homeProbableId:
+        (g.home_sp_id != null && slugByExtId.get(g.home_sp_id)) ||
+        (g.home_sp_id != null ? String(g.home_sp_id) : undefined),
+      awayProbableHand: hand(g.away_sp_hand),
+      homeProbableHand: hand(g.home_sp_hand),
+      gamePk: g.game_pk,
+    };
+  });
+  return { date, games: mapped, startUtcById };
 }
 
 /** NHL slate (and MLB fallback) from the MySQL ingestion — unchanged. */
 async function mysqlSlate(sports: ("mlb" | "nhl")[]): Promise<SlateGame[]> {
+  return (await mysqlSlateBySport(sports)).flatMap((s) => s.games);
+}
+
+/** MySQL slate grouped per sport with the slate date each group came from. */
+async function mysqlSlateBySport(
+  sports: ("mlb" | "nhl")[],
+): Promise<{ sport: "mlb" | "nhl"; date: string; games: SlateGame[] }[]> {
   const db = getDb();
   const rows = await db.select().from(slateGames).orderBy(desc(slateGames.gameDate));
   const latestBySport = new Map<string, string>();
   for (const r of rows) if (!latestBySport.has(r.sport)) latestBySport.set(r.sport, r.gameDate);
-  return rows
-    .filter((r) => sports.includes(r.sport) && r.gameDate === latestBySport.get(r.sport))
-    .map(toSlateGame);
+  return sports.map((sport) => ({
+    sport,
+    date: latestBySport.get(sport) ?? "",
+    games: rows
+      .filter((r) => r.sport === sport && r.gameDate === latestBySport.get(r.sport))
+      .map(toSlateGame),
+  }));
 }
 
 function toSlateGame(row: typeof slateGames.$inferSelect): SlateGame {
@@ -98,11 +120,29 @@ export const slateRouter = createRouter({
       if (wantMlb) {
         let mlb: SlateGame[] = [];
         try {
-          mlb = await mlbSlateFromSavant();
+          const sv = await mlbSlateFromSavant();
+          // FIX 19: merge The Odds API game prices (moneyline/runline/total)
+          // onto the sv slate, keyed by team pair + the sv ET slate date.
+          // Unjoined games dash out via explicit nulls.
+          mlb = sv.games.length
+            ? await withGameOdds(sv.games, sv.date, sv.startUtcById)
+            : [];
         } catch (err) {
           console.warn("[savant] sv_slate unavailable, using MySQL fallback:", (err as Error).message);
         }
-        out.push(...(mlb.length ? mlb : await mysqlSlate(["mlb"])));
+        if (mlb.length) {
+          out.push(...mlb);
+        } else {
+          const [fallback] = await mysqlSlateBySport(["mlb"]);
+          // Same odds merge on the MySQL fallback date; no startUtc, so any
+          // doubleheader takes the earliest unmatched event (counted in
+          // provenance).
+          out.push(
+            ...(fallback.games.length && fallback.date
+              ? await withGameOdds(fallback.games, fallback.date)
+              : fallback.games),
+          );
+        }
       }
       if (wantNhl) out.push(...(await mysqlSlate(["nhl"]))); // NHL unchanged
       return out;
@@ -124,8 +164,16 @@ export const slateRouter = createRouter({
         .where(and(eq(slateGames.sport, sport), eq(slateGames.away, away), eq(slateGames.home, home)))
         .orderBy(desc(slateGames.gameDate))
         .limit(1);
-      return rows[0] ? toSlateGame(rows[0]) : undefined;
+      if (!rows[0]) return undefined;
+      const game = toSlateGame(rows[0]);
+      if (sport !== "mlb") return game;
+      // FIX 19: the detail view gets the same odds merge, on the row's date.
+      const [priced] = await withGameOdds([game], rows[0].gameDate);
+      return priced;
     }),
+
+  /** FIX 19: provenance + quota surface for the Gamecenter freshness line. */
+  gameOddsStatus: publicQuery.query(() => gameOddsProvenance()),
 
   /** MLB team bullpen stats (from reliever game logs — see api/ingest/mlb.ts). */
   bullpens: publicQuery.query(async () => {

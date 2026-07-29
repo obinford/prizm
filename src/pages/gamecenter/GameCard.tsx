@@ -7,6 +7,7 @@ import { getGameProps } from '@/data/props'
 import { heatBg, deltaTextClass } from '@/lib/heat'
 import { hitRateTint } from './utils'
 import { getGameAngles } from './content'
+import GameOdds from './GameOdds'
 
 function starterHeadline(game: SlateGame, side: 'away' | 'home'): { name: string; line: string } {
   const id = side === 'away' ? game.awayProbableId : game.homeProbableId
@@ -100,16 +101,19 @@ export default function GameCard({
           <span className="font-display text-[22px] font-bold text-text-1">{game.away}</span>
           <span className="data-mono text-sm text-text-3">@</span>
           <span className="font-display text-[22px] font-bold text-text-1">{game.home}</span>
-          <span
-            className="data-mono ml-auto rounded-sm bg-bg-2 px-2 py-0.5 text-[11px] text-text-2"
-            title={
-              game.total == null
-                ? 'No game-odds feed — sv_odds covers player props only. Totals need a game-odds source Prizm has not purchased.'
-                : undefined
-            }
-          >
-            O/U {game.total != null ? game.total.toFixed(1) : '—'}
-          </span>
+          {game.sport === 'mlb' && (
+            <span className="ml-auto flex flex-wrap justify-end gap-1.5">
+              <GameOdds game={game} />
+            </span>
+          )}
+          {game.sport === 'nhl' && (
+            <span
+              className="data-mono ml-auto rounded-sm bg-bg-2 px-2 py-0.5 text-[11px] text-text-2"
+              title="No game-odds feed for NHL — moneyline, puckline and totals need a game-odds source Prizm has not purchased."
+            >
+              O/U {game.total != null ? game.total.toFixed(1) : '—'}
+            </span>
+          )}
         </div>
         <div className="mt-1.5 flex items-center gap-3 text-[12px]">
           <span className="text-text-2">{away.name}</span>

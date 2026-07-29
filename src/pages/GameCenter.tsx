@@ -4,6 +4,7 @@ import { LayoutGrid, List, Lock } from 'lucide-react'
 import { getGame, getSlate } from '@/data/slate'
 import { getPlan } from '@/lib/plan'
 import { SLATE_DAY_LABEL, useSlateDay } from '@/lib/slateDay'
+import GameOddsFreshness from '@/components/GameOddsFreshness'
 import GameCard from './gamecenter/GameCard'
 import GameDetail from './gamecenter/GameDetail'
 import TomorrowSlate from './gamecenter/TomorrowSlate'
@@ -45,6 +46,7 @@ export default function GameCenter() {
         <span className="data-mono rounded-sm border border-line bg-bg-2 px-2 py-1 text-[11px] text-text-2">
           {SLATE_DAY_LABEL[day]}
         </span>
+        {day === 'today' && sport === 'mlb' && <GameOddsFreshness />}
         <div className="ml-auto flex items-center gap-2">
           {/* Sport toggle */}
           <div className="flex rounded-md bg-bg-2 p-1">

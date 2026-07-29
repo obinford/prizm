@@ -53,4 +53,11 @@ export const env = {
   get databaseUrl(): string {
     return lazy("DATABASE_URL");
   },
+  // FIX 19: The Odds API key is OPTIONAL — game odds degrade to dashes
+  // without it (no invented prices, same rule as flat -115 props). It is
+  // deliberately NOT in REQUIRED: a missing key must never block boot or
+  // fail a unit test. "" means "game odds unavailable".
+  get oddsApiKey(): string {
+    return process.env.ODDS_API_KEY ?? "";
+  },
 };

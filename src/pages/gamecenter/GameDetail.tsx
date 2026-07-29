@@ -24,6 +24,7 @@ import { useProfileDrawer } from '@/pages/profiler/useProfileDrawer'
 import { ConfidenceMeter, DeltaChip } from './kit'
 import { saveAngle } from './utils'
 import { getAiReads, getGameAngles } from './content'
+import GameOdds from './GameOdds'
 
 // ---------------------------------------------------------------------------
 // Matchup read paragraph — word-stagger reveal. The read is a deterministic
@@ -361,16 +362,16 @@ export default function GameDetail({
                 <span className="data-mono rounded-sm border border-line bg-bg-2 px-2.5 py-1.5 text-[12px] text-text-2">
                   {game.venue}
                 </span>
-                <span
-                  className="data-mono rounded-sm border border-line bg-bg-2 px-2.5 py-1.5 text-[12px] text-text-2"
-                  title={
-                    game.total == null
-                      ? 'No game-odds feed — sv_odds covers player props only. Moneyline, runline and totals need a game-odds source Prizm has not purchased.'
-                      : undefined
-                  }
-                >
-                  O/U {game.total != null ? game.total.toFixed(1) : '—'}
-                </span>
+                {game.sport === 'mlb' ? (
+                  <GameOdds game={game} />
+                ) : (
+                  <span
+                    className="data-mono rounded-sm border border-line bg-bg-2 px-2.5 py-1.5 text-[12px] text-text-2"
+                    title="No game-odds feed for NHL — moneyline, puckline and totals need a game-odds source Prizm has not purchased."
+                  >
+                    O/U {game.total != null ? game.total.toFixed(1) : '—'}
+                  </span>
+                )}
                 <span className="data-mono rounded-sm border border-line bg-bg-2 px-2.5 py-1.5 text-[12px] text-text-2">
                   {game.startTime}
                 </span>
