@@ -53,7 +53,10 @@ export function toPropLine(row: PropRow, player: { slug: string; name: string; t
 
 /** Existing MySQL-derived props. NHL: only on an explicit sport:"nhl" ask
  * (parked vertical — no odds feed, preseason slate, prior-season logs).
- * MLB: fallback only when sv_odds has no coverage. Prices flat -115. */
+ * MLB: fallback only when sv_odds has no coverage. Prices flat -115.
+ * FIX 14: XBH rows are excluded at read time — no book prices the market,
+ * so it is off the board entirely. The derived ingest keeps writing them
+ * (harmless; the XBH stat column elsewhere is unaffected). */
 async function mysqlProps(sport: Sport): Promise<PropLine[]> {
   const db = getDb();
   const rows = await db
@@ -62,9 +65,11 @@ async function mysqlProps(sport: Sport): Promise<PropLine[]> {
     .innerJoin(players, eq(props.playerId, players.id))
     .where(eq(props.sport, sport))
     .orderBy(desc(props.updatedAt));
-  return rows.map((r) =>
-    toPropLine(r.prop, { slug: r.player.slug, name: r.player.name, team: r.player.team }),
-  );
+  return rows
+    .filter((r) => r.prop.market !== "XBH") // FIX 14
+    .map((r) =>
+      toPropLine(r.prop, { slug: r.player.slug, name: r.player.name, team: r.player.team }),
+    );
 }
 
 // ── MLB props from sv_odds (real lines + prices) ─────────────────────────────

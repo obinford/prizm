@@ -3,9 +3,9 @@
 // src/data/live.ts (see LiveDataProvider). Before hydration it is empty;
 // AppShell blocks the authed app behind the provider's loading state.
 // priceAlert = the price looks wrong vs recent hit rates (the "Zap" flag in UI).
-// MLB odds are REAL aggregated book lines (sv_odds) — except XBH, a Prizm-derived
-// line from game logs that no book prices; NHL rows stay flat -115
-// (no odds feed). Informational only — Prizm is not a sportsbook.
+// MLB odds are REAL aggregated book lines (sv_odds). XBH — the one market no
+// book ever priced — is off the board entirely (FIX 14); NHL rows stay flat
+// -115 (no odds feed). Informational only — Prizm is not a sportsbook.
 
 import { getGame } from '@/data/slate'
 import { getPitcher } from '@/data/mlbPlayers'
@@ -31,13 +31,17 @@ export type PropMarket =
   | 'Stolen Bases'
   | 'Hits + Runs + RBIs'
 
-// Thirteen markets served by sv_odds with real two-sided consensus prices,
-// plus XBH — a Prizm-derived line computed from MySQL game logs (see
-// deriveSpecs in api/ingest/props.ts). sv_odds carries zero XBH rows and no
-// book prices it, so XBH rows honestly dash out the price / fair / edge
-// columns (oddsSource "flat"). Order matters: the array leads the scanner's
-// market chips, so a real-odds market leads — Total Bases, the deepest
-// sv_odds book (~1.4k rows) — and the derived market trails.
+// Thirteen markets served by sv_odds with real two-sided consensus prices.
+// Order matters: the array leads the scanner's market chips, so a real-odds
+// market leads — Total Bases, the deepest sv_odds book (~1.4k rows).
+//
+// FIX 14 (2026-07-29): XBH is OUT — off the market chips and off the board
+// (the api mysql fallback filters it at read time). sv_odds carries zero
+// XBH rows and no book prices it, so every XBH row was a derived line
+// dashing out price/fair/edge — a market that could never be acted on.
+// The XBH STAT (batter column, angles text) stays; the 'XBH' PropMarket
+// union member and DERIVED_MARKETS stay for that contract. It returns as a
+// market only if a real book price ever exists for it.
 export const MLB_MARKETS: PropMarket[] = [
   'Total Bases',
   'Strikeouts',
@@ -52,7 +56,6 @@ export const MLB_MARKETS: PropMarket[] = [
   'Walks',
   'Stolen Bases',
   'Hits + Runs + RBIs',
-  'XBH',
 ]
 
 /** Markets no book prices — line and hit rate are Prizm-derived from game
