@@ -4,7 +4,6 @@ import { AnimatePresence } from 'framer-motion'
 import { Search } from 'lucide-react'
 import { BATTERS, PITCHERS } from '@/data/mlbPlayers'
 import { GOALIES, SKATERS } from '@/data/nhlPlayers'
-import { getPlan } from '@/lib/plan'
 import { toggleFollow } from '@/lib/follows'
 import { findPlayer, kindOf, posLabel, sportOf } from '@/pages/profiler/derive'
 import ProfilerDrawer from './profiler/Drawer'
@@ -27,7 +26,6 @@ const NHL_PLAYERS: ProfileTarget[] = [
 ]
 
 export default function Profiler() {
-  const isAllAccess = getPlan() === 'allaccess'
   const [sport, setSport] = useState<'mlb' | 'nhl'>('mlb')
   const [search, setSearch] = useState('')
   const [team, setTeam] = useState('All')
@@ -159,7 +157,6 @@ export default function Profiler() {
                     key={t.player.id}
                     target={t}
                     index={i}
-                    isAllAccess={isAllAccess}
                     onFollow={() => followTarget(t)}
                     onOpen={() => setDrawer(t)}
                   />

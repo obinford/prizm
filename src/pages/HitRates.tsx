@@ -5,18 +5,15 @@ import ScannerControls from '@/pages/hit-rates/ScannerControls'
 import type { ScannerState } from '@/pages/hit-rates/ScannerControls'
 import ResultsTable from '@/pages/hit-rates/ResultsTable'
 import type { SortDir } from '@/pages/hit-rates/ResultsTable'
-import UpgradeWall from '@/pages/hit-rates/UpgradeWall'
 import SummaryStrip from '@/pages/hit-rates/SummaryStrip'
 import OddsFreshness from '@/components/OddsFreshness'
 import { saveAngle } from '@/pages/angles/store'
 import { getProps, formatOdds, sideRate } from '@/data/props'
 import type { HitWindow, PropLine } from '@/data/props'
 import { MLB_MARKETS, NHL_MARKETS } from '@/data/props'
-import { getPlan, onPlanChange } from '@/lib/plan'
-import type { Plan } from '@/lib/plan'
 
-const FREE_ROWS = 5
-const TEASER_ROWS = 3
+// FIX 13: FREE_ROWS/TEASER_ROWS gating constants removed with the upgrade
+// wall — every row renders for every visitor while pricing is deferred.
 
 export default function HitRates() {
   const [scanner, setScanner] = useState<ScannerState>({
@@ -32,12 +29,9 @@ export default function HitRates() {
   })
   const [sortKey, setSortKey] = useState<HitWindow>('L10')
   const [sortDir, setSortDir] = useState<SortDir>('desc')
-  const [plan, setPlan] = useState<Plan>(() => getPlan())
   const [toast, setToast] = useState<string | null>(null)
   const [bookmarked, setBookmarked] = useState<Set<string>>(new Set())
   const [controlsOpen, setControlsOpen] = useState(false)
-
-  useEffect(() => onPlanChange(() => setPlan(getPlan())), [])
 
   useEffect(() => {
     if (!toast) return
@@ -82,9 +76,8 @@ export default function HitRates() {
     return arr
   }, [filtered, sortKey, sortDir, scanner.side])
 
-  const gated = plan === 'dashboards'
-  const visibleRows = gated ? sorted.slice(0, FREE_ROWS) : sorted
-  const teaserRows = gated ? sorted.slice(FREE_ROWS, FREE_ROWS + TEASER_ROWS) : []
+  // FIX 13: gating removed with pricing deferred — every row is visible.
+  const visibleRows = sorted
 
   const resetKey = JSON.stringify([
     scanner.sport,
@@ -96,7 +89,6 @@ export default function HitRates() {
     scanner.side,
     scanner.line,
     scanner.edgeWindow,
-    plan,
   ])
 
   const onSort = (key: HitWindow) => {
@@ -267,34 +259,7 @@ export default function HitRates() {
               resetKey={resetKey}
             />
 
-            {/* S4 — upgrade wall (dashboards plan) */}
-            {gated && (
-              <div className="relative border-t border-line">
-                {teaserRows.length > 0 && (
-                  <>
-                    <div className="pointer-events-none select-none opacity-50 blur-[3px]" aria-hidden>
-                      <ResultsTable
-                        rows={teaserRows}
-                        window={scanner.window}
-                        side={scanner.side}
-                        edgeWindow={scanner.edgeWindow}
-                        sortKey={sortKey}
-                        sortDir={sortDir}
-                        onSort={() => {}}
-                        onBookmark={() => {}}
-                        bookmarked={bookmarked}
-                        resetKey={`${resetKey}-teaser`}
-                        teaser
-                      />
-                    </div>
-                    <div className="pointer-events-none absolute inset-x-0 top-0 h-40 animate-pulse bg-gradient-to-b from-transparent via-bg-1/40 to-bg-1" />
-                  </>
-                )}
-                <div className={`relative z-10 pb-8 pt-2 ${teaserRows.length > 0 ? '-mt-24' : ''}`}>
-                  <UpgradeWall onUpgraded={() => setToast('Welcome to All Access')} />
-                </div>
-              </div>
-            )}
+            {/* S4 upgrade wall removed — FIX 13, pricing deferred. */}
           </>
         )}
       </motion.div>

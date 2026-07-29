@@ -25,12 +25,11 @@ export interface ProfileTarget {
 interface Props {
   target: ProfileTarget
   index: number
-  isAllAccess: boolean
   onFollow: () => void
   onOpen: () => void
 }
 
-export default function ProfileCard({ target, index, isAllAccess, onFollow, onOpen }: Props) {
+export default function ProfileCard({ target, index, onFollow, onOpen }: Props) {
   const { player } = target
   const score = formScore(player)
   const stats = headerStats(player).slice(0, 4)
@@ -45,15 +44,6 @@ export default function ProfileCard({ target, index, isAllAccess, onFollow, onOp
       className="group relative flex flex-col rounded-lg border border-line bg-bg-1 p-5 transition-colors hover:border-line-strong"
       aria-label={`${player.name} profile card`}
     >
-      {!isAllAccess && (
-        <span
-          className="absolute right-4 top-4 rounded-sm px-1.5 py-0.5 text-[9px] font-bold tracking-[0.12em] text-white"
-          style={{ background: 'var(--gradient-spectrum)' }}
-        >
-          ALL ACCESS
-        </span>
-      )}
-
       {/* Identity */}
       <div className="flex items-center gap-3.5">
         <span

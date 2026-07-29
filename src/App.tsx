@@ -2,7 +2,6 @@ import { Navigate, Routes, Route, useLocation } from 'react-router'
 import Layout from '@/components/Layout'
 import AppShell from '@/components/AppShell'
 import Home from '@/pages/Home'
-import Pricing from '@/pages/Pricing'
 import Faq from '@/pages/Faq'
 import Terms from '@/pages/Terms'
 import Privacy from '@/pages/Privacy'
@@ -38,7 +37,10 @@ export default function App() {
       {/* Marketing routes — Layout renders <Outlet/> */}
       <Route element={<Layout />}>
         <Route index element={<Home />} />
-        <Route path="pricing" element={<Pricing />} />
+        {/* FIX 13: pricing is deferred — /pricing REDIRECTS HOME (chosen
+            over not-found: the marketing site stays live and a stale
+            pricing link shouldn't 404 for a real visitor). */}
+        <Route path="pricing" element={<Navigate to="/" replace />} />
         <Route path="faq" element={<Faq />} />
         <Route path="terms" element={<Terms />} />
         <Route path="privacy" element={<Privacy />} />

@@ -9,7 +9,6 @@ import { LOGIN_PATH } from '@/const'
 import { trpc } from '@/providers/trpc'
 import LiveDataProvider from '@/providers/LiveDataProvider'
 import UserDataSync from '@/providers/UserDataSync'
-import { getPlan, onPlanChange, type Plan } from '@/lib/plan'
 
 const RESEARCH_NAV = [
   { label: 'Dashboards — MLB', to: '/dashboard', icon: LayoutDashboard },
@@ -97,7 +96,6 @@ function FreshnessChip() {
 interface ShellUser {
   name: string
   email: string
-  plan: Plan
 }
 
 function SidebarContent({ collapsed, user, onLogout, onNavigate }: { collapsed: boolean; user: ShellUser; onLogout: () => void; onNavigate?: () => void }) {
@@ -155,24 +153,10 @@ function SidebarContent({ collapsed, user, onLogout, onNavigate }: { collapsed: 
         {AI_NAV.map(renderItem)}
       </nav>
 
-      {/* Bottom: theme, plan, user */}
+      {/* Bottom: theme, user (FIX 13: the plan badge and trial chip are gone
+          with pricing deferred — there is no plan to advertise) */}
       <div className="border-t border-line px-2 py-3">
         <ThemeToggle collapsed={collapsed} />
-        <div className={`mt-1 ${collapsed ? 'px-1' : 'px-1'}`}>
-          {user.plan === 'allaccess' ? (
-            <span
-              className="inline-flex items-center rounded-sm px-2 py-1 text-[11px] font-semibold text-white"
-              style={{ background: 'var(--gradient-spectrum)' }}
-              title="All Access plan"
-            >
-              {collapsed ? 'AA' : 'All Access'}
-            </span>
-          ) : (
-            <span className="inline-flex items-center rounded-sm bg-sp-indigo/25 px-2 py-1 text-[11px] font-semibold text-sp-indigo" title="Dashboards plan">
-              {collapsed ? 'DB' : 'Dashboards'}
-            </span>
-          )}
-        </div>
         <div className="group relative mt-2">
           <button
             type="button"
@@ -230,7 +214,6 @@ function AuthLoadingState() {
   )
 }
 
-const TRIAL_DAYS = 7
 
 /**
  * Today / Tomorrow stepper. Previously three inert elements with no handlers —
@@ -294,23 +277,12 @@ export default function AppShell() {
     redirectOnUnauthenticated: true,
     redirectPath: LOGIN_PATH,
   })
-  const [plan, setPlan] = useState<Plan>(() => getPlan())
   const [collapsed, setCollapsed] = useState(false)
   const [drawerOpen, setDrawerOpen] = useState(false)
 
-  useEffect(() => onPlanChange(() => setPlan(getPlan())), [])
   useEffect(() => setDrawerOpen(false), [location.pathname])
 
   const title = useMemo(() => pageTitle(location.pathname), [location.pathname])
-
-  // 7-day trial runs from account creation (OAuth auto-provisions the user).
-  const daysLeft = useMemo(() => {
-    if (!user?.createdAt) return 0
-    const created = new Date(user.createdAt).getTime()
-    const ms = created + TRIAL_DAYS * 86_400_000 - Date.now()
-    return Math.max(0, Math.ceil(ms / 86_400_000))
-  }, [user?.createdAt])
-  const inTrial = daysLeft > 0
 
   // Auto-collapse sidebar below 1024px
   const [narrow, setNarrow] = useState(() => typeof window !== 'undefined' && window.innerWidth < 1024)
@@ -330,7 +302,6 @@ export default function AppShell() {
   const shellUser: ShellUser = {
     name: user.name?.trim() || 'Prizm User',
     email: user.email ?? '',
-    plan,
   }
 
   return (
@@ -431,13 +402,6 @@ export default function AppShell() {
               <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-pos" />
             </button>
 
-            {/* Trial badge */}
-            {inTrial && (
-              <span className="hidden items-center gap-1.5 rounded-sm border border-warning/40 bg-warning/10 px-2.5 py-1 text-xs font-semibold text-warning sm:flex">
-                <Zap size={12} />
-                Trial · {daysLeft} day{daysLeft === 1 ? '' : 's'} left
-              </span>
-            )}
           </header>
 
           {/* Page content */}

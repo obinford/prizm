@@ -3,12 +3,12 @@ import Hero from '@/pages/home/Hero'
 import HowItWorks from '@/pages/home/HowItWorks'
 import { useLenis } from '@/pages/home/useLenis'
 import { StatBand, TwoSports, ValueProps } from '@/pages/home/sections'
-import { PricingPreview, FinalCTA } from '@/pages/home/sections2'
+import { FinalCTA } from '@/pages/home/sections2'
 
 /**
  * Prizm landing page: hero → stat band → two sports → value props →
- * how it works → pricing preview → final CTA.
- * (Navbar + footer live in the marketing Layout.)
+ * how it works → final CTA. (FIX 13: the pricing preview section is gone
+ * with pricing deferred; Navbar + footer live in the marketing Layout.)
  *
  * The screenshot-driven sections (pinned showcase, tools bento, testimonials)
  * were removed — they depended on product screenshots and avatar photos that
@@ -31,7 +31,6 @@ export default function Home() {
       <TwoSports />
       <ValueProps />
       <HowItWorks />
-      <PricingPreview />
       <FinalCTA />
     </div>
   )

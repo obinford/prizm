@@ -3,11 +3,10 @@ import { Link } from 'react-router'
 import { AnimatePresence, motion } from 'framer-motion'
 import { ArrowRight, Gem, Search } from 'lucide-react'
 import FaqItem from '@/pages/faq/FaqItem'
-import { fmtUsd, planById } from '@/pages/pricing/plans'
 
-// Plan prices interpolated from the single source of truth (pricing/plans.ts).
-const DASHBOARDS = planById('dashboards')
-const ALL_ACCESS = planById('allaccess')
+// FIX 13: the 'Plans & billing' category and trial answers were removed with
+// pricing deferred. They return with the paid launch, sourced from
+// pages/pricing/plans.ts (kept unreferenced for exactly that).
 
 const EASE: [number, number, number, number] = [0.16, 1, 0.3, 1]
 
@@ -19,7 +18,6 @@ interface FaqEntry {
 
 const CATEGORIES = [
   'Getting started',
-  'Plans & billing',
   'Data & windows',
   'Tools',
   'Responsible use',
@@ -38,28 +36,13 @@ const FAQS: FaqEntry[] = [
   },
   {
     category: 'Getting started',
-    q: 'How does the 7-day trial work?',
-    a: 'Card required up front; you are not charged until day 8. Cancel anytime in two clicks and keep your saved views and angles.',
+    q: 'How do I get access?',
+    a: 'Prizm is in private beta — access is by invitation while pricing is being finalized. Email support@prizm.bet to ask for a seat.',
   },
   {
     category: 'Getting started',
     q: 'Do I need to know advanced stats?',
     a: 'No. Red = better than baseline, blue = worse. The colors do the translating.',
-  },
-  {
-    category: 'Plans & billing',
-    q: "What's the difference between plans?",
-    a: `Dashboards Only (${fmtUsd(DASHBOARDS.monthlyPrice)}/mo, ${fmtUsd(DASHBOARDS.annualTotal)}/yr) is the split tables for both sports. All Access (${fmtUsd(ALL_ACCESS.monthlyPrice)}/mo, ${fmtUsd(ALL_ACCESS.annualTotal)}/yr) adds Hit Rates, Profiler, GameCenter, EdgeCenter, and My Angles.`,
-  },
-  {
-    category: 'Plans & billing',
-    q: 'Can I switch or cancel?',
-    a: 'Anytime; upgrades are prorated instantly, cancellations keep access until period end.',
-  },
-  {
-    category: 'Plans & billing',
-    q: 'Refunds?',
-    a: 'First month, no questions asked.',
   },
   {
     category: 'Data & windows',
@@ -178,7 +161,7 @@ export default function Faq() {
             transition={{ duration: 0.4, delay: 0.3, ease: EASE }}
             className="mt-4 max-w-xl text-lg leading-[1.65] text-text-2"
           >
-            Everything about plans, trials, data, and how Prizm reads a bet.
+            Everything about the data, the windows, and how Prizm reads a bet.
           </motion.p>
         </div>
       </section>
@@ -305,10 +288,10 @@ export default function Faq() {
           </p>
           <div className="mt-7 flex flex-wrap items-center justify-center gap-3">
             <Link
-              to="/register"
+              to="/login"
               className="rounded-md bg-sp-indigo px-5 py-[11px] text-sm font-semibold text-white transition-all duration-200 hover:brightness-110 hover:shadow-cta-glow active:scale-[0.97]"
             >
-              Start free trial
+              Sign in
             </Link>
             <a
               href="mailto:support@prizm.bet"

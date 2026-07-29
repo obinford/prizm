@@ -1,13 +1,13 @@
 import { Link } from 'react-router'
 import LegalPage from '@/pages/terms/LegalPage'
 import type { LegalSection } from '@/pages/terms/LegalPage'
-import { fmtUsd, planById } from '@/pages/pricing/plans'
 
-// Plan prices are interpolated from the single source of truth
-// (pricing/plans.ts) — a legal document quoting a hardcoded price that
-// disagrees with checkout is the exact bug this prevents.
-const DASHBOARDS = planById('dashboards')
-const ALL_ACCESS = planById('allaccess')
+// FIX 13 (2026-07-29): pricing is deferred — this document no longer quotes
+// plan prices, trial-billing terms, or renewal mechanics (the plans.ts
+// interpolation that guaranteed they matched checkout went with them). When
+// paid plans launch, restore exact terms from pages/pricing/plans.ts — a
+// legal document quoting a hardcoded price that disagrees with checkout is
+// the exact bug that interpolation prevented.
 
 const SECTIONS: LegalSection[] = [
   {
@@ -16,7 +16,7 @@ const SECTIONS: LegalSection[] = [
     body: (
       <>
         <p>
-          By creating an account, starting a trial, or otherwise using Prizm (the "Service"), you
+          By creating an account or otherwise using Prizm (the "Service"), you
           agree to be bound by these Terms of Service and our{' '}
           <Link to="/privacy" className="text-sp-indigo hover:brightness-125">
             Privacy Policy
@@ -39,7 +39,7 @@ const SECTIONS: LegalSection[] = [
         <p>
           Prizm provides sports statistics dashboards, rolling-window analysis, hit-rate tools, and
           matchup research content for Major League Baseball and the National Hockey League.
-          Features vary by plan and may change over time.
+          Prizm is currently in private beta; features may change over time.
         </p>
         <p>
           <strong className="font-semibold text-text-1">Data sources:</strong> MLB stats come from
@@ -52,7 +52,7 @@ const SECTIONS: LegalSection[] = [
   },
   {
     id: 'accounts-trials',
-    title: 'Accounts & Trials',
+    title: 'Accounts & Access',
     body: (
       <>
         <p>
@@ -60,9 +60,9 @@ const SECTIONS: LegalSection[] = [
           keeping your credentials confidential.
         </p>
         <p>
-          The 7-day free trial requires a valid payment method up front. You are not charged during
-          the trial; unless you cancel before it ends, your chosen plan bills automatically on day 8.
-          We may limit trials to one per customer.
+          During the private beta, accounts are created by invitation. When paid plans are
+          introduced, any trial, billing, and cancellation terms will be published here before
+          they take effect, and continued use after that point constitutes acceptance of them.
         </p>
       </>
     ),
@@ -73,16 +73,13 @@ const SECTIONS: LegalSection[] = [
     body: (
       <>
         <p>
-          Subscriptions renew automatically on a monthly or annual basis at{' '}
-          {fmtUsd(DASHBOARDS.monthlyPrice)}/{fmtUsd(ALL_ACCESS.monthlyPrice)} per month or{' '}
-          {fmtUsd(DASHBOARDS.annualTotal)}/{fmtUsd(ALL_ACCESS.annualTotal)} per year, depending on
-          plan, plus applicable taxes. Prices may change with at least 30 days' notice; changes
-          apply to your next renewal.
+          Prizm does not currently charge for access. No payment method is collected and no
+          automatic renewal exists.
         </p>
         <p>
-          Upgrades are prorated immediately; downgrades and cancellations take effect at the end of
-          the current billing period. First-month refunds are available on request — email
-          support@prizm.bet.
+          If paid subscriptions are introduced, prices, renewal terms, proration, cancellation,
+          and refund policy will be added to these Terms with at least 30 days' notice before
+          any charge occurs. Questions in the meantime: support@prizm.bet.
         </p>
       </>
     ),
@@ -163,9 +160,8 @@ const SECTIONS: LegalSection[] = [
     body: (
       <p>
         We may suspend or terminate your account for abuse, fraud, or violation of these Terms, with
-        or without notice. You may cancel anytime from your account settings; cancellation stops
-        future billing and preserves access until the end of the paid period. Provisions that by
-        their nature should survive termination survive.
+        or without notice. You may close your account at any time by contacting support@prizm.bet.
+        Provisions that by their nature should survive termination survive.
       </p>
     ),
   },

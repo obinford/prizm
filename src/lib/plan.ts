@@ -1,6 +1,12 @@
 // Prizm plan toggle — lightweight localStorage flag (prizm_plan) that drives
-// the upgrade-wall UX only. NOT auth: identity/session is Kimi OAuth (see
-// src/hooks/useAuth.ts). Defaults to 'allaccess' during the beta.
+// the upgrade-wall UX only. NOT auth: identity/session is email + password.
+//
+// FIX 13 (2026-07-29): pricing is DEFERRED. The site launched without paid
+// plans, so every feature is ungated and getPlan() is pinned to 'allaccess'.
+// The plan machinery stays in place (setter, subscription, type) so
+// re-introducing plans is a revert of this pin, not a rebuild. plans.ts and
+// its guard test survive unreferenced under pages/pricing/ for the same
+// reason. Do not reintroduce gating piecemeal — it comes back as a launch.
 
 export type Plan = 'dashboards' | 'allaccess'
 
@@ -8,11 +14,8 @@ const KEY = 'prizm_plan'
 const EVENT = 'prizm-plan'
 
 export function getPlan(): Plan {
-  try {
-    return localStorage.getItem(KEY) === 'dashboards' ? 'dashboards' : 'allaccess'
-  } catch {
-    return 'allaccess'
-  }
+  // FIX 13: hard-pinned while pricing is deferred (see header).
+  return 'allaccess'
 }
 
 export function setPlan(plan: Plan) {

@@ -187,10 +187,10 @@ export default function Hero({ onWatchLight }: { onWatchLight: () => void }) {
 
           <div className="mt-8 flex flex-wrap items-center gap-4">
             <Link
-              to="/register"
+              to="/login"
               className="hero-cta rounded-md bg-sp-indigo px-6 py-3 text-sm font-semibold text-white transition-all duration-200 hover:brightness-110 hover:shadow-cta-glow active:scale-[0.97]"
             >
-              Start 7-day free trial
+              Sign in
             </Link>
             <button
               type="button"

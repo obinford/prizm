@@ -1,11 +1,10 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router'
 import { animate, motion } from 'framer-motion'
-import { Bookmark, Crosshair, FileDown, Info, Share2, Sparkles } from 'lucide-react'
+import { Bookmark, FileDown, Info, Share2, Sparkles } from 'lucide-react'
 import { format } from 'date-fns'
 import { TODAYS_SLATE } from '@/data/slate'
 import { PROPS, bestOverTag, consensusOver, devigProp, edgePp, edgeQuality, edgeSurvivesCI, ciWilson, formatOdds, windowN, type PropLine } from '@/data/props'
-import { getPlan, onPlanChange } from '@/lib/plan'
 import { getFollowedIds, onFollowsChange } from '@/lib/follows'
 import { DeltaChip, EdgeGauge, SportChip, ToastViewport } from './gamecenter/kit'
 import { hitRateTint, saveAngle, toast } from './gamecenter/utils'
@@ -275,15 +274,14 @@ function EdgeCard({
 // ---------------------------------------------------------------------------
 
 export default function EdgeCenter() {
-  const [isAllAccess, setIsAllAccess] = useState(() => getPlan() === 'allaccess')
-  useEffect(() => onPlanChange(() => setIsAllAccess(getPlan() === 'allaccess')), [])
+  // FIX 13: pricing deferred — every visitor is All Access, no upgrade wall.
   const today = new Date()
   const [followedIds, setFollowedIds] = useState(() => getFollowedIds())
   useEffect(() => onFollowsChange(() => setFollowedIds(getFollowedIds())), [])
   const followedEdges = rankedProps().filter((p) => followedIds.includes(p.playerId)).slice(0, 6)
 
   const visibleTop = topEdges().slice(0, 3)
-  const visibleRest = isAllAccess ? topEdges().slice(3) : []
+  const visibleRest = topEdges().slice(3)
 
   // Rows priced out of the edge by the odds-quality gate — a thin consensus
   // or an incoherent hold would otherwise manufacture the biggest apparent
@@ -446,43 +444,10 @@ export default function EdgeCenter() {
         ))}
       </section>
 
-      {/* S6 — Upgrade wall (Dashboards plan) */}
-      {!isAllAccess && (
-        <section className="relative mt-6">
-          <div className="pointer-events-none space-y-4 opacity-40 blur-[6px]" aria-hidden>
-            {topEdges().slice(3, 5).map((p, i) => (
-              <EdgeCard key={p.id} prop={p} rank={i + 4} lite index={i} />
-            ))}
-          </div>
-          <motion.div
-            initial={{ opacity: 0, scale: 0.96 }}
-            whileInView={{ opacity: 1, scale: 1 }}
-            viewport={{ once: true, amount: 0.4 }}
-            transition={{ duration: 0.3 }}
-            className="prizm-card raised relative z-10 mx-auto -mt-32 max-w-md p-8 text-center"
-          >
-            <span className="mx-auto mb-4 flex h-11 w-11 items-center justify-center rounded-full bg-sp-indigo/15 text-sp-indigo">
-              <Crosshair size={20} strokeWidth={1.5} />
-            </span>
-            <h3 className="font-display text-xl font-semibold text-text-1">
-              The full brief is All Access.
-            </h3>
-            <p className="mt-2 text-sm leading-relaxed text-text-2">
-              Ranks 4–{topEdges().length}, the worth-a-look list, and tomorrow&apos;s early read —
-              plus My Angles sharing and GameCenter breakdowns.
-            </p>
-            <Link
-              to="/pricing"
-              className="cta-glow mt-5 inline-block rounded-md bg-sp-indigo px-5 py-2.5 text-sm font-semibold text-white transition hover:brightness-110"
-            >
-              Upgrade to All Access
-            </Link>
-          </motion.div>
-        </section>
-      )}
+      {/* S6 upgrade wall removed — FIX 13, pricing deferred. */}
 
       {/* S4 — Worth a look divider + lighter cards */}
-      {isAllAccess && visibleRest.length > 0 && (
+      {visibleRest.length > 0 && (
         <>
           <div className="my-8 flex items-center gap-4">
             <span className="overline-caption shrink-0 text-text-3">Worth a look</span>

@@ -14,7 +14,7 @@ const PRODUCT_LINKS = [
 ]
 
 const NAV_LINKS = [
-  { label: 'Pricing', to: '/pricing' },
+  // FIX 13: Pricing link removed while pricing is deferred (/pricing redirects home).
   { label: 'FAQ', to: '/faq' },
 ]
 

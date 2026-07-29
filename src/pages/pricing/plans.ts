@@ -1,9 +1,15 @@
 // Pricing plan definitions — THE single source of truth for plan prices.
-// Every surface that mentions a price imports from here: the pricing page
-// (PlanCard, ComparisonTable, Pricing savings badge), the checkout form
-// (Register), the homepage preview (home/sections2), Terms, FAQ, and the
-// in-app upgrade wall (hit-rates/UpgradeWall). A price literal anywhere else
-// is a future contradiction — plans.test.ts fails the build if one appears.
+//
+// FIX 13 (2026-07-29): DEFERRED — kept unreferenced on purpose. Pricing
+// launched off: the pricing page, plan comparison, upgrade wall, homepage
+// preview and FAQ plan answers are gone, and getPlan() is hard-pinned to
+// 'allaccess' (src/lib/plan.ts). This file and plans.test.ts stay so that
+// re-introducing paid plans is a wiring job, not a redesign. When pricing
+// returns, this header's original contract applies again:
+//
+// Every surface that mentions a price imports from here. A price literal
+// anywhere else is a future contradiction — plans.test.ts fails the build
+// if one appears.
 //
 // Field names carry the unit because this bug already happened once:
 // `annual: 9.99` read as a monthly-equivalent here while Register read

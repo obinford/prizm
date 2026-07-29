@@ -1,8 +1,7 @@
 import { useMemo, useState } from 'react'
-import { Link, useSearchParams } from 'react-router'
-import { LayoutGrid, List, Lock } from 'lucide-react'
+import { useSearchParams } from 'react-router'
+import { LayoutGrid, List } from 'lucide-react'
 import { getGame, getSlate } from '@/data/slate'
-import { getPlan } from '@/lib/plan'
 import { SLATE_DAY_LABEL, useSlateDay } from '@/lib/slateDay'
 import GameOddsFreshness from '@/components/GameOddsFreshness'
 import GameCard from './gamecenter/GameCard'
@@ -33,8 +32,6 @@ export default function GameCenter() {
     window.scrollTo({ top: 0 })
   }
   const clearGame = () => setSearchParams({})
-
-  const isAllAccess = getPlan() === 'allaccess'
 
   return (
     <div>
@@ -89,36 +86,9 @@ export default function GameCenter() {
         </div>
       </div>
 
-      {!isAllAccess ? (
-        /* Upgrade wall — Dashboards plan */
-        <div className="relative">
-          <div className="pointer-events-none grid gap-4 opacity-40 blur-[6px] md:grid-cols-2" aria-hidden>
-            {games.slice(0, 4).map((g, i) => (
-              <GameCard key={g.id} game={g} index={i} view="grid" onSelect={() => {}} />
-            ))}
-          </div>
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div className="prizm-card raised max-w-sm p-8 text-center">
-              <span className="mx-auto mb-4 flex h-11 w-11 items-center justify-center rounded-full bg-sp-indigo/15 text-sp-indigo">
-                <Lock size={20} strokeWidth={1.5} />
-              </span>
-              <h3 className="font-display text-xl font-semibold text-text-1">
-                GameCenter is All Access
-              </h3>
-              <p className="mt-2 text-sm leading-relaxed text-text-2">
-                Per-game matchup reads, splits matrices, and betting angles for every matchup on the
-                slate. Upgrade to unlock the full breakdown.
-              </p>
-              <Link
-                to="/pricing"
-                className="mt-5 inline-block rounded-md bg-sp-indigo px-5 py-2.5 text-sm font-semibold text-white transition hover:brightness-110"
-              >
-                Upgrade to All Access
-              </Link>
-            </div>
-          </div>
-        </div>
-      ) : day === 'tomorrow' ? (
+      {/* FIX 13: the All Access upgrade wall is gone with pricing deferred —
+          every visitor gets the full Gamecenter. */}
+      {day === 'tomorrow' ? (
         /* Tomorrow — schedule facts + weather; analysis honestly absent */
         sport === 'mlb' ? (
           <TomorrowSlate />

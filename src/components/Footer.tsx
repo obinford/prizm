@@ -11,7 +11,7 @@ const PRODUCT_LINKS = [
 ]
 
 const COMPANY_LINKS = [
-  { label: 'Pricing', to: '/pricing' },
+  // FIX 13: Pricing link removed while pricing is deferred (/pricing redirects home).
   { label: 'FAQ', to: '/faq' },
   { label: 'Terms', to: '/terms' },
   { label: 'Privacy', to: '/privacy' },
