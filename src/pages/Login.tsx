@@ -33,7 +33,13 @@ export default function Login() {
   // old client-side-only check.
   const submit = async (e: FormEvent) => {
     e.preventDefault()
-    const emailOk = /^\S+@\S+\.\S+$/.test(email)
+    // Dev-only convenience at Oakley's explicit request: locally the seeded
+    // account signs in as admin / admin. import.meta.env.DEV is compile-time
+    // eliminated from production builds — the deployed app accepts only the
+    // real account (obinford@gmail.com, password set via the one-time link).
+    const emailOk =
+      /^\S+@\S+\.\S+$/.test(email) ||
+      (import.meta.env.DEV && email.trim().toLowerCase() === 'admin')
     const pwOk = password.length >= 1
     setErrors({ email: !emailOk, password: !pwOk })
     if (!emailOk || !pwOk) {
