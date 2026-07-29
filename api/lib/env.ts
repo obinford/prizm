@@ -13,22 +13,26 @@ import "dotenv/config";
 //      an ingest script skipping the boot check), the getter throws the same
 //      full-list error at the point of use, never silently "".
 //
-// Required: DATABASE_URL; the Supabase pair (every data route — sv_odds,
-// sv_stat_cache, sv_slate — reads the warehouse, so booting without it just
-// defers a guaranteed failure to the first query); and APP_SECRET, which
-// since FIX 12 is purely the session-JWT signing key — any strong random
-// value satisfies it, and the Kimi OAuth set is gone entirely.
-// Optional: BALLPARKPAL_API_KEY (the Weather tab degrades without it)
-// never blocks boot.
+// Required: DATABASE_URL; SUPABASE_URL plus AT LEAST ONE warehouse key
+// (SUPABASE_SERVICE_KEY preferred since FIX 16, SUPABASE_ANON_KEY as the
+// local-dev fallback — every sv_* route reads the warehouse, so booting
+// without a key just defers a guaranteed failure to the first query); and
+// APP_SECRET, which since FIX 12 is purely the session-JWT signing key —
+// any strong random value satisfies it, and the Kimi OAuth set is gone
+// entirely.
+// Optional: BALLPARKPAL_API_KEY and ODDS_API_KEY (their surfaces degrade
+// honestly without them) never block boot.
 const REQUIRED = [
   "DATABASE_URL",
   "SUPABASE_URL",
-  "SUPABASE_ANON_KEY",
   "APP_SECRET",
 ] as const;
 
 export function assertRequiredEnv(): void {
-  const missing = REQUIRED.filter((name) => !process.env[name]);
+  const missing: string[] = REQUIRED.filter((name) => !process.env[name]);
+  if (!process.env.SUPABASE_SERVICE_KEY && !process.env.SUPABASE_ANON_KEY) {
+    missing.push("SUPABASE_SERVICE_KEY or SUPABASE_ANON_KEY");
+  }
   if (missing.length > 0) {
     throw new Error(
       `Missing required environment variable${missing.length === 1 ? "" : "s"}:\n` +
