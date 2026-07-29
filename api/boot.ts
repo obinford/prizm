@@ -4,9 +4,14 @@ import type { HttpBindings } from "@hono/node-server";
 import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
 import { appRouter } from "./router";
 import { createContext } from "./context";
-import { env } from "./lib/env";
+import { env, assertRequiredEnv } from "./lib/env";
 import { handleLogin, handleSetPassword } from "./auth/password";
 import { printSetupUrlOnce } from "./auth/setupNotice";
+
+// FIX 11: the one boot-time env check. Throws the full missing list before
+// anything serves. (In dev, vite loads this module on the first API request —
+// the failure surfaces there with the same message.)
+assertRequiredEnv();
 
 const app = new Hono<{ Bindings: HttpBindings }>();
 

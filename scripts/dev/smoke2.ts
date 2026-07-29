@@ -1,18 +1,27 @@
-// Authed-procedure smoke: angles + follows with a fabricated user context.
+// DEV-ONLY authed-procedure smoke: angles + follows with a local smoke user.
+// FIX 17: moved out of api/ingest/ — that directory is the documented
+// production stand-up sequence, and a script there that inserts an admin row
+// is one copy-paste away from a second credential in a real environment.
+// This refuses to run in production and never grants admin (the procedures
+// it exercises are per-user or public — admin is not needed).
+if (process.env.NODE_ENV === "production") {
+  throw new Error("scripts/dev/smoke2.ts is a dev-only utility — refusing to run in production.");
+}
 import "dotenv/config";
-import { appRouter } from "../router";
-import { getDb } from "../queries/connection";
+import { appRouter } from "../../api/router";
+import { getDb } from "../../api/queries/connection";
 import { users } from "@db/schema";
 import { eq } from "drizzle-orm";
 
-// ensure a smoke user exists — email identity, NULL passwordHash (it can
-// never log in through a real route; it exists only to drive procedure calls)
+// ensure a smoke user exists — email identity, role "user" (never admin),
+// NULL passwordHash: it can never log in through a real route and carries no
+// elevated role; it exists only to drive procedure calls in dev.
 const db = getDb();
 let [user] = await db.select().from(users).where(eq(users.email, "smoke@prizm.local")).limit(1);
 if (!user) {
   const [{ id }] = await db
     .insert(users)
-    .values({ name: "Smoke Test", email: "smoke@prizm.local", role: "admin" })
+    .values({ name: "Smoke Test", email: "smoke@prizm.local", role: "user" })
     .$returningId();
   [user] = (await db.select().from(users).where(eq(users.id, id)).limit(1)) as any;
 }
