@@ -9,19 +9,17 @@ import "dotenv/config";
 // full list, so a first run prints everything that is needed instead of one
 // variable per restart.
 //
-// Required: DATABASE_URL and the Kimi auth set are required for the
-// dashboard; the Supabase pair is required too — every data route (sv_odds,
-// sv_stat_cache, sv_slate) reads the warehouse, so booting without it just
-// defers a guaranteed failure to the first query.
-// Optional: OWNER_UNION_ID (admin bootstrap) and BALLPARKPAL_API_KEY (the
-// Weather tab degrades without it) never block boot.
+// Required: DATABASE_URL; the Supabase pair (every data route — sv_odds,
+// sv_stat_cache, sv_slate — reads the warehouse, so booting without it just
+// defers a guaranteed failure to the first query); and APP_SECRET, which
+// since FIX 12 is purely the session-JWT signing key — any strong random
+// value satisfies it, and the Kimi OAuth set is gone entirely.
+// Optional: BALLPARKPAL_API_KEY (the Weather tab degrades without it)
+// never blocks boot.
 const REQUIRED = [
   "DATABASE_URL",
   "SUPABASE_URL",
   "SUPABASE_ANON_KEY",
-  "KIMI_AUTH_URL",
-  "KIMI_OPEN_URL",
-  "APP_ID",
   "APP_SECRET",
 ] as const;
 
@@ -40,11 +38,7 @@ function required(name: (typeof REQUIRED)[number]): string {
 }
 
 export const env = {
-  appId: required("APP_ID"),
   appSecret: required("APP_SECRET"),
   isProduction: process.env.NODE_ENV === "production",
   databaseUrl: required("DATABASE_URL"),
-  kimiAuthUrl: required("KIMI_AUTH_URL"),
-  kimiOpenUrl: required("KIMI_OPEN_URL"),
-  ownerUnionId: process.env.OWNER_UNION_ID ?? "",
 };

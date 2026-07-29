@@ -10,5 +10,6 @@ export const ErrorMessages = {
 
 export const Paths = {
   login: "/login",
-  oauthCallback: "/api/oauth/callback",
+  /** First-time account setup — one-time token lands here (FIX 12). */
+  setPassword: "/set-password",
 } as const;

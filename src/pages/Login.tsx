@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { Link, useNavigate, useSearchParams } from 'react-router'
+import { Link, useSearchParams } from 'react-router'
 import { motion } from 'framer-motion'
 import { Check, Eye, EyeOff, Loader2 } from 'lucide-react'
 import AuthSplit from '@/pages/login/AuthSplit'
@@ -14,7 +14,6 @@ const inputClass = (err: boolean) =>
   }`
 
 export default function Login() {
-  const navigate = useNavigate()
   const [params] = useSearchParams()
   const registered = params.get('registered') === '1'
 
@@ -24,29 +23,45 @@ export default function Login() {
   const [showPw, setShowPw] = useState(false)
   const [errors, setErrors] = useState<{ email?: boolean; password?: boolean }>({})
   const [failed, setFailed] = useState(false)
+  const [networkError, setNetworkError] = useState(false)
   const [shakeKey, setShakeKey] = useState(0)
   const [submitting, setSubmitting] = useState(false)
 
-  const submit = (e: FormEvent) => {
+  // FIX 12: real credential check against the server. The session cookie is
+  // set by the response; a full navigation re-initializes the trpc cache
+  // under the new session. No demo account exists — one was removed with the
+  // old client-side-only check.
+  const submit = async (e: FormEvent) => {
     e.preventDefault()
     const emailOk = /^\S+@\S+\.\S+$/.test(email)
-    const pwOk = password.length >= 6
+    const pwOk = password.length >= 1
     setErrors({ email: !emailOk, password: !pwOk })
     if (!emailOk || !pwOk) {
       setShakeKey((k) => k + 1)
       return
     }
     setSubmitting(true)
-    // Demo: simulate credential check — demo@prizm.bet / prizmdemo signs in.
-    setTimeout(() => {
-      if (email.toLowerCase() === 'demo@prizm.bet' && password === 'prizmdemo') {
-        navigate('/dashboard')
-      } else {
-        setSubmitting(false)
-        setFailed(true)
-        setShakeKey((k) => k + 1)
+    setFailed(false)
+    setNetworkError(false)
+    try {
+      const resp = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim().toLowerCase(), password }),
+        credentials: 'same-origin',
+      })
+      if (resp.ok) {
+        window.location.assign('/dashboard')
+        return
       }
-    }, 700)
+      setSubmitting(false)
+      setFailed(true)
+      setShakeKey((k) => k + 1)
+    } catch {
+      setSubmitting(false)
+      setNetworkError(true)
+      setShakeKey((k) => k + 1)
+    }
   }
 
   return (
@@ -57,12 +72,9 @@ export default function Login() {
         'Weather-adjusted park factors',
       ]}
       footer={
-        <>
-          New here?{' '}
-          <Link to="/register" className="font-semibold text-sp-indigo transition hover:brightness-125">
-            Start your 7-day trial
-          </Link>
-        </>
+        <span className="text-text-3">
+          Prizm is invite-only — accounts are created by the owner.
+        </span>
       }
     >
       <motion.div
@@ -83,7 +95,7 @@ export default function Login() {
             transition={{ duration: 0.3, delay: 0.2 }}
             className="mt-4 flex items-center gap-2 rounded-md border border-success/30 bg-success/10 px-3.5 py-2.5 text-[13px] text-success"
           >
-            <Check size={14} strokeWidth={2.5} /> Trial started — sign in to explore the app.
+            <Check size={14} strokeWidth={2.5} /> Account ready — sign in to explore the app.
           </motion.p>
         )}
 
@@ -94,7 +106,18 @@ export default function Login() {
             transition={{ duration: 0.3 }}
             className="mt-4 rounded-md border border-danger/30 bg-danger/10 px-3.5 py-2.5 text-[13px] text-danger"
           >
-            That email/password combo didn&rsquo;t match. Try the demo credentials below.
+            That email/password combo didn&rsquo;t match.
+          </motion.p>
+        )}
+
+        {networkError && (
+          <motion.p
+            initial={{ opacity: 0, y: -6 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3 }}
+            className="mt-4 rounded-md border border-danger/30 bg-danger/10 px-3.5 py-2.5 text-[13px] text-danger"
+          >
+            Couldn&rsquo;t reach the server. Check that the app is running and try again.
           </motion.p>
         )}
 
@@ -153,7 +176,7 @@ export default function Login() {
               </button>
             </div>
             {errors.password && (
-              <p className="mt-1.5 text-[13px] text-danger">Use at least 6 characters.</p>
+              <p className="mt-1.5 text-[13px] text-danger">Enter your password.</p>
             )}
           </div>
 
@@ -181,14 +204,6 @@ export default function Login() {
             {submitting ? 'Signing in…' : 'Sign in'}
           </button>
         </motion.form>
-
-        {/* Demo credentials hint */}
-        <div className="mt-6 rounded-md border border-line bg-bg-1 px-4 py-3">
-          <p className="data-mono text-[12px] leading-relaxed text-text-3">
-            Demo — <span className="text-text-2">demo@prizm.bet</span> /{' '}
-            <span className="text-text-2">prizmdemo</span>
-          </p>
-        </div>
       </motion.div>
     </AuthSplit>
   )

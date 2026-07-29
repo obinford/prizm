@@ -5,13 +5,14 @@ import { getDb } from "../queries/connection";
 import { users } from "@db/schema";
 import { eq } from "drizzle-orm";
 
-// ensure a smoke user exists
+// ensure a smoke user exists — email identity, NULL passwordHash (it can
+// never log in through a real route; it exists only to drive procedure calls)
 const db = getDb();
-let [user] = await db.select().from(users).where(eq(users.unionId, "smoke-user")).limit(1);
+let [user] = await db.select().from(users).where(eq(users.email, "smoke@prizm.local")).limit(1);
 if (!user) {
   const [{ id }] = await db
     .insert(users)
-    .values({ unionId: "smoke-user", name: "Smoke Test", email: "smoke@prizm.local", role: "admin" })
+    .values({ name: "Smoke Test", email: "smoke@prizm.local", role: "admin" })
     .$returningId();
   [user] = (await db.select().from(users).where(eq(users.id, id)).limit(1)) as any;
 }

@@ -8,6 +8,7 @@ import Terms from '@/pages/Terms'
 import Privacy from '@/pages/Privacy'
 import Login from '@/pages/Login'
 import Register from '@/pages/Register'
+import SetPassword from '@/pages/SetPassword'
 import Dashboard from '@/pages/dashboard/Dashboard'
 import HockeyDashboard from '@/pages/HockeyDashboard'
 import Profiler from '@/pages/Profiler'
@@ -47,6 +48,7 @@ export default function App() {
       {/* Auth pages (split-screen, standalone) */}
       <Route path="login" element={<Login />} />
       <Route path="register" element={<Register />} />
+      <Route path="set-password" element={<SetPassword />} />
 
       {/* App routes — AppShell renders <Outlet/>, auth-gated */}
       <Route element={<AppShell />}>

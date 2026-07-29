@@ -5,13 +5,17 @@ import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
 import { appRouter } from "./router";
 import { createContext } from "./context";
 import { env } from "./lib/env";
-import { createOAuthCallbackHandler } from "./kimi/auth";
-import { Paths } from "@contracts/constants";
+import { handleLogin, handleSetPassword } from "./auth/password";
+import { printSetupUrlOnce } from "./auth/setupNotice";
 
 const app = new Hono<{ Bindings: HttpBindings }>();
 
 app.use(bodyLimit({ maxSize: 50 * 1024 * 1024 }));
-app.get(Paths.oauthCallback, createOAuthCallbackHandler());
+
+// FIX 12: email + password auth. No OAuth provider, no callback route.
+app.post("/api/auth/login", handleLogin);
+app.post("/api/auth/set-password", handleSetPassword);
+
 app.use("/api/trpc/*", async (c) => {
   return fetchRequestHandler({
     endpoint: "/api/trpc",
@@ -21,6 +25,10 @@ app.use("/api/trpc/*", async (c) => {
   });
 });
 app.all("/api/*", (c) => c.json({ error: "Not Found" }, 404));
+
+// First-time account setup: if the seeded owner has no password yet, print
+// his one-time setup link to the console (once per process, never to a file).
+void printSetupUrlOnce();
 
 export default app;
 

@@ -14,9 +14,13 @@ import {
 
 export const users = mysqlTable("users", {
   id: bigint("id", { mode: "number", unsigned: true }).autoincrement().primaryKey(),
-  unionId: varchar("unionId", { length: 255 }).notNull().unique(),
+  // FIX 12: email + password auth replaces Kimi OAuth. Email is the identity;
+  // unionId is gone. passwordHash is NULL until the owner sets one through the
+  // one-time setup route — an account with mustSetPassword cannot log in.
+  email: varchar("email", { length: 320 }).notNull().unique(),
   name: varchar("name", { length: 255 }),
-  email: varchar("email", { length: 320 }),
+  passwordHash: varchar("passwordHash", { length: 255 }), // argon2id; NULL = password never set
+  mustSetPassword: boolean("mustSetPassword").notNull().default(false),
   avatar: text("avatar"),
   role: mysqlEnum("role", ["user", "admin"]).default("user").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
@@ -25,6 +29,23 @@ export const users = mysqlTable("users", {
     .notNull()
     .$onUpdate(() => new Date()),
   lastSignInAt: timestamp("lastSignInAt").defaultNow().notNull(),
+});
+
+/**
+ * One-time account-setup tokens (FIX 12). The plaintext token is printed to
+ * the server console exactly once at creation and never stored — only its
+ * SHA-256 hash lives here. Single use, short expiry; a used or expired token
+ * is dead and a fresh one comes from a server restart or `npm run setup-url`.
+ */
+export const setupTokens = mysqlTable("setup_tokens", {
+  id: bigint("id", { mode: "number", unsigned: true }).autoincrement().primaryKey(),
+  userId: bigint("userId", { mode: "number", unsigned: true })
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  tokenHash: varchar("tokenHash", { length: 64 }).notNull().unique(), // sha256 hex
+  expiresAt: timestamp("expiresAt").notNull(),
+  consumedAt: timestamp("consumedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 
 export type User = typeof users.$inferSelect;

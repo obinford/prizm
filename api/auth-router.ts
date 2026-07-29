@@ -4,7 +4,11 @@ import { getSessionCookieOptions } from "./lib/cookies";
 import { createRouter, authedQuery } from "./middleware";
 
 export const authRouter = createRouter({
-  me: authedQuery.query((opts) => opts.ctx.user),
+  // Never return the raw row: passwordHash must not reach the browser (FIX 12).
+  me: authedQuery.query((opts) => {
+    const { id, email, name, avatar, role, createdAt, lastSignInAt } = opts.ctx.user;
+    return { id, email, name, avatar, role, createdAt, lastSignInAt };
+  }),
   logout: authedQuery.mutation(async ({ ctx }) => {
     const opts = getSessionCookieOptions(ctx.req.headers);
     ctx.resHeaders.append(

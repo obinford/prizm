@@ -8,6 +8,20 @@
       "when": 1785124595198,
       "tag": "0000_init",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "5",
+      "when": 1785295407509,
+      "tag": "0001_auth_email_password",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1785295454614,
+      "tag": "0002_auth_drop_unionid",
+      "breakpoints": true
     }
   ]
 }

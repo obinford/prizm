@@ -1,3 +1,6 @@
+// Session JWTs (FIX 12). APP_SECRET is now purely a signing key — any strong
+// random value satisfies it; no external OAuth provider is involved.
+
 import * as jose from "jose";
 import { env } from "../lib/env";
 import type { SessionPayload } from "./types";
@@ -8,7 +11,7 @@ export async function signSessionToken(
   payload: SessionPayload,
 ): Promise<string> {
   const secret = new TextEncoder().encode(env.appSecret);
-  return new jose.SignJWT(payload)
+  return new jose.SignJWT({ ...payload })
     .setProtectedHeader({ alg: JWT_ALG })
     .setIssuedAt()
     .setExpirationTime("1 year")
@@ -27,12 +30,12 @@ export async function verifySessionToken(
     const { payload } = await jose.jwtVerify(token, secret, {
       algorithms: [JWT_ALG],
     });
-    const { unionId, clientId } = payload;
-    if (!unionId || !clientId) {
+    const { userId, email } = payload;
+    if (typeof userId !== "number" || typeof email !== "string" || !email) {
       console.warn("[session] JWT payload missing required fields.");
       return null;
     }
-    return { unionId, clientId } as SessionPayload;
+    return { userId, email };
   } catch (error) {
     console.warn("[session] JWT verification failed:", error);
     return null;
